@@ -13,6 +13,9 @@ ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string &
 {
     particles.resize(width * height);
     pixelBuffer.resize(width * height * 4); // RGBA
+    
+    // Initialize rigid body system
+    rigidBodySystem = std::make_unique<RigidBodySystem>(width, height);
 
     if (!worldFile.empty() && std::filesystem::exists(worldFile))
     {
@@ -28,6 +31,7 @@ ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string &
     }
 }
 
+
 void ParticleWorld::clear()
 {
     for (auto &p : particles)
@@ -35,6 +39,12 @@ void ParticleWorld::clear()
         p = Particle::createEmpty();
     }
     std::fill(pixelBuffer.begin(), pixelBuffer.end(), 0);
+    
+    // Clear rigid bodies
+    if (rigidBodySystem)
+    {
+        rigidBodySystem->clear();
+    }
 }
 
 void ParticleWorld::setParticleAt(int x, int y, const Particle &particle)
@@ -108,14 +118,41 @@ bool ParticleWorld::isInWater(int x, int y, int *lx, int *ly) const
     }
     return false;
 }
-
+void ParticleWorld::addRigidBody(int centerX, int centerY, float size, RigidBodyShape shape, MaterialID materialType)
+{
+    if (!rigidBodySystem) return;
+    
+    // Create rigid body based on shape
+    switch (shape)
+    {
+        case RigidBodyShape::Circle:
+            rigidBodySystem->createCircle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
+            
+        case RigidBodyShape::Square:
+            rigidBodySystem->createSquare(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
+            
+        case RigidBodyShape::Triangle:
+            rigidBodySystem->createTriangle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
+    }
+}
 void ParticleWorld::update(float deltaTime)
 {
     frameCounter++;
     bool frameCounterEven = (frameCounter % 2) == 0;
     int ran = frameCounterEven ? 0 : 1;
 
-    // Process from bottom to top to prevent double updates
+    // Update rigid body physics first
+    if (rigidBodySystem)
+    {
+        rigidBodySystem->update(deltaTime);
+        // Render rigid bodies to particle world (now handles its own cleanup)
+        rigidBodySystem->renderToParticleWorld(this);
+    }
+
+    // Process particles from bottom to top to prevent double updates
     for (int y = height - 1; y >= 0; --y)
     {
         for (int x = ran ? 0 : width - 1; ran ? x < width : x > 0; ran ? ++x : --x)
@@ -123,6 +160,10 @@ void ParticleWorld::update(float deltaTime)
             auto &particle = getParticleAt(x, y);
 
             if (particle.id == MaterialID::Empty)
+                continue;
+
+            // Skip updating rigid body particles (marked with lifetime -1.0f)
+            if (particle.lifeTime == -1.0f)
                 continue;
 
             // Update particle lifetime
@@ -153,7 +194,6 @@ void ParticleWorld::update(float deltaTime)
         p.hasBeenUpdatedThisFrame = false;
     }
 }
-
 void ParticleWorld::addParticleCircle(int centerX, int centerY, float radius, MaterialID materialType)
 {
     // Place particles in circular area around center point

@@ -4,25 +4,17 @@
 #include <string>
 #include <vector>
 #include "Constants.hpp"
-
+#include "RigidBody.hpp"
 namespace SandSim {
     // Forward declaration
     class ParticleWorld;
     
     enum class MaterialSelection {
-        Sand = 0,
-        Water,
-        Salt,
-        Wood,
-        Fire,
-        Smoke,
-        Steam,
-        Gunpowder,
-        Oil,
-        Lava,
-        Stone,
-        Acid
-    };
+    Sand = 0, Water, Salt, Wood, Fire, Smoke, Steam, Gunpowder, Oil, Lava, Stone, Acid,
+    // Rigid body shapes (add after existing materials)
+    RigidCircle, RigidSquare, RigidTriangle
+};
+
     
     struct MaterialButton {
         sf::Vector2i position;
@@ -52,6 +44,8 @@ namespace SandSim {
     
     class UI {
     private:
+    bool isRigidBodyMode() const;
+    RigidBodyShape getCurrentRigidBodyShape() const;
         sf::RenderTexture uiTexture;
         sf::Sprite uiSprite;
         
@@ -80,7 +74,8 @@ namespace SandSim {
         
     public:
         UI(ParticleWorld* worldPtr);
-        
+        bool isCurrentSelectionRigidBody() const;
+    RigidBodyShape getRigidBodyShape() const;
         // Public methods
         void setupMaterialButtons();
         void setupSaveButton();  // New method

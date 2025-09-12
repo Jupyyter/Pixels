@@ -1,3 +1,5 @@
+// Add these additions to your ParticleWorld.hpp header:
+
 #pragma once
 #include <vector>
 #include <memory>
@@ -6,6 +8,7 @@
 #include "Particle.hpp"
 #include "Constants.hpp"
 #include "Random.hpp"
+#include "RigidBody.hpp"  // Add this include
 #include <iostream>
 
 namespace SandSim
@@ -17,6 +20,9 @@ namespace SandSim
         std::vector<std::uint8_t> pixelBuffer;
         int width, height;
         uint32_t frameCounter;
+        
+        // Add rigid body system
+        std::unique_ptr<RigidBodySystem> rigidBodySystem;
 
     public:
         // File I/O operations
@@ -56,11 +62,15 @@ namespace SandSim
         // Particle placement/removal
         void addParticleCircle(int centerX, int centerY, float radius, MaterialID materialType);
         void eraseCircle(int centerX, int centerY, float radius);
+        
+        // Rigid body methods
+        void addRigidBody(int centerX, int centerY, float size, RigidBodyShape shape, MaterialID materialType);
+        RigidBodySystem* getRigidBodySystem() { return rigidBodySystem.get(); }
 
-    private:
-        // Factory method for creating particles by type
+        // Factory method for creating particles by type - make this public so RigidBodySystem can use it
         Particle createParticleByType(MaterialID type);
 
+    private:
         // Movement algorithms for different physics types
         void updateLiquidMovement(int x, int y, float dt, float horizontalChance, float velocityMultiplier);
         void updateSolidMovement(int x, int y, float dt, bool canDisplaceLiquids);

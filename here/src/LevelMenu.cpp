@@ -49,7 +49,7 @@ namespace SandSim
             instructionsText.setFont(fonttt);
             instructionsText.setCharacterSize(12); // Reduced from 14 to 12
             instructionsText.setFillColor(sf::Color(200, 200, 200));
-            instructionsText.setString("Click on a level to start playing");
+            instructionsText.setString(":)");
 
             sf::FloatRect instrBounds = instructionsText.getLocalBounds();
             instructionsText.setPosition(sf::Vector2f((TEXTURE_WIDTH - instrBounds.size.x) / 2.0f, 38)); // Adjusted for smaller header

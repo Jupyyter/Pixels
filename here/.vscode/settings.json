@@ -82,6 +82,7 @@
                 "execution": "cpp",
                 "numeric": "cpp",
                 "numbers": "cpp",
-                "fstream": "cpp"
+                "fstream": "cpp",
+                "set": "cpp"
         }
 }

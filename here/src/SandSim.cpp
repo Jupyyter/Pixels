@@ -289,7 +289,18 @@ void SandSimApp::addParticles(const sf::Vector2f& worldPos) {
     int y = static_cast<int>(worldPos.y);
     
     if (x >= 0 && x < TEXTURE_WIDTH && y >= 0 && y < TEXTURE_HEIGHT) {
-        world->addParticleCircle(x, y, ui->getSelectionRadius(), ui->getCurrentMaterialID());
+        // Check if current selection is a rigid body
+        if (ui->isCurrentSelectionRigidBody()) {
+            // Spawn rigid body instead of particles
+            RigidBodyShape shape = ui->getRigidBodyShape();
+            MaterialID materialType = ui->getCurrentMaterialID();
+            float size = ui->getSelectionRadius() * 2.0f; // Use selection radius as size
+            
+            world->addRigidBody(x, y, size, shape, materialType);
+        } else {
+            // Spawn regular particles
+            world->addParticleCircle(x, y, ui->getSelectionRadius(), ui->getCurrentMaterialID());
+        }
     }
 }
 
@@ -306,6 +317,12 @@ void SandSimApp::eraseParticles(const sf::Vector2f& worldPos) {
 
 void SandSimApp::addParticlesLine(const sf::Vector2f& startPos, const sf::Vector2f& endPos) {
     if (!ui) return;
+    
+    // Don't create rigid bodies along lines - only at discrete points
+    if (ui->isCurrentSelectionRigidBody()) {
+        addParticles(endPos);
+        return;
+    }
     
     // Calculate the distance between start and end positions
     float dx = endPos.x - startPos.x;
@@ -332,7 +349,6 @@ void SandSimApp::addParticlesLine(const sf::Vector2f& startPos, const sf::Vector
         addParticles(currentPos);
     }
 }
-
 void SandSimApp::eraseParticlesLine(const sf::Vector2f& startPos, const sf::Vector2f& endPos) {
     if (!ui) return;
     

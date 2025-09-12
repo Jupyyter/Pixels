@@ -156,7 +156,7 @@ bool UI::loadFont()
 void UI::setupMaterialButtons() {
     materialButtons.clear();
     
-    // Define all material buttons
+    // Define all material buttons (including new rigid body options)
     std::vector<std::pair<std::string, std::pair<MaterialID, sf::Color>>> materials = {
         {"Sand", {MaterialID::Sand, MAT_COL_SAND}},
         {"Water", {MaterialID::Water, MAT_COL_WATER}},
@@ -169,7 +169,11 @@ void UI::setupMaterialButtons() {
         {"Oil", {MaterialID::Oil, MAT_COL_OIL}},
         {"Lava", {MaterialID::Lava, MAT_COL_LAVA}},
         {"Stone", {MaterialID::Stone, MAT_COL_STONE}},
-        {"Acid", {MaterialID::Acid, MAT_COL_ACID}}
+        {"Acid", {MaterialID::Acid, MAT_COL_ACID}},
+        // Rigid body options
+        {"Stone Circle", {MaterialID::Stone, sf::Color(120, 120, 120)}},
+        {"Stone Square", {MaterialID::Stone, sf::Color(140, 140, 140)}},
+        {"Stone Triangle", {MaterialID::Stone, sf::Color(160, 160, 160)}}
     };
     
     for (size_t i = 0; i < materials.size(); ++i) {
@@ -183,7 +187,28 @@ void UI::setupMaterialButtons() {
         materialButtons.push_back(button);
     }
 }
+bool UI::isCurrentSelectionRigidBody() const {
+    return currentSelection == MaterialSelection::RigidCircle ||
+           currentSelection == MaterialSelection::RigidSquare ||
+           currentSelection == MaterialSelection::RigidTriangle;
+}
 
+RigidBodyShape UI::getRigidBodyShape() const {
+    switch (currentSelection) {
+        case MaterialSelection::RigidCircle:   return RigidBodyShape::Circle;
+        case MaterialSelection::RigidSquare:   return RigidBodyShape::Square;
+        case MaterialSelection::RigidTriangle: return RigidBodyShape::Triangle;
+        default:                               return RigidBodyShape::Circle; // Default fallback
+    }
+}
+
+bool UI::isRigidBodyMode() const {
+    return isCurrentSelectionRigidBody();
+}
+
+RigidBodyShape UI::getCurrentRigidBodyShape() const {
+    return getRigidBodyShape();
+}
 void UI::update(const sf::Vector2f& worldMousePos, float frameTime, bool simulationRunning) {
     mousePos = worldMousePos;
 
