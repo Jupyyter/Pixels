@@ -21,7 +21,6 @@ namespace SandSim
         int width, height;
         uint32_t frameCounter;
         
-        // Add rigid body system
         std::unique_ptr<RigidBodySystem> rigidBodySystem;
 
     public:
@@ -30,7 +29,6 @@ namespace SandSim
         bool loadWorld(const std::string &filename);
         std::string getNextAvailableFilename(const std::string &baseName);
         
-        // Constructor - loads world file if specified
         ParticleWorld(unsigned int w, unsigned int h, const std::string &worldFile = "");
 
         // Reset world to empty state

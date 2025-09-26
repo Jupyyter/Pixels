@@ -10,7 +10,7 @@ Renderer::Renderer() : usePostProcessing(false),
     // Create texture for particle data with proper settings
     particleTexture = sf::Texture(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT));
     
-    // CRITICAL: Prevent texture repetition/wrapping
+    // Prevent texture repetition/wrapping
     particleTexture.setRepeated(false);
     particleTexture.setSmooth(false); // Pixel art style - no smoothing
     
@@ -18,10 +18,8 @@ Renderer::Renderer() : usePostProcessing(false),
     const_cast<sf::Texture&>(renderTexture.getTexture()).setRepeated(false);
     const_cast<sf::Texture&>(renderTexture.getTexture()).setSmooth(false);
     
-    // Set texture to sprite
     particleSprite.setTexture(particleTexture);
     
-    // Initialize shaders
     setupShaders();
 }
 
@@ -193,7 +191,7 @@ void Renderer::renderDirect(sf::RenderWindow& window) {
 }
 
 void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
-    // Step 1: Render original to texture with slight enhancement
+    // Render original to texture with slight enhancement
     renderTexture.clear();
     sf::Sprite tempSprite(particleTexture);
     tempSprite.setTextureRect(sf::IntRect({0, 0}, {static_cast<int>(TEXTURE_WIDTH), static_cast<int>(TEXTURE_HEIGHT)}));
@@ -206,7 +204,7 @@ void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
     }
     renderTexture.display();
     
-    // Step 2: Extract bright areas for bloom
+    // Extract bright areas for bloom
     sf::RenderTexture bloomTexture(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT));
     const_cast<sf::Texture&>(bloomTexture.getTexture()).setRepeated(false);
     const_cast<sf::Texture&>(bloomTexture.getTexture()).setSmooth(false);
@@ -217,7 +215,7 @@ void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
     bloomTexture.draw(bloomSprite, &bloomShader);
     bloomTexture.display();
     
-    // Step 3: Apply multiple blur passes for better bloom spread
+    // Apply multiple blur passes for better bloom spread
     sf::RenderTexture blurTexture1(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT));
     sf::RenderTexture blurTexture2(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT));
     
@@ -240,7 +238,7 @@ void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
     blurTexture2.draw(blurSprite2, &blurShader);
     blurTexture2.display();
     
-    // Step 4: Composite original + bloom
+    // Composite original + bloom
     renderTexture.clear();
     
     // Draw original
@@ -265,7 +263,7 @@ void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
     
     renderTexture.display();
     
-    // Step 5: Draw final result to window
+    // Draw final result to window
     particleSprite.setTexture(renderTexture.getTexture());
     scaleToWindow(window);
     window.draw(particleSprite);

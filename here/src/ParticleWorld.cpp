@@ -14,7 +14,6 @@ ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string &
     particles.resize(width * height);
     pixelBuffer.resize(width * height * 4); // RGBA
     
-    // Initialize rigid body system
     rigidBodySystem = std::make_unique<RigidBodySystem>(width, height);
 
     if (!worldFile.empty() && std::filesystem::exists(worldFile))

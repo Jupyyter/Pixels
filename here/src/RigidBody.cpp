@@ -216,7 +216,6 @@ void RigidBodySystem::update(float deltaTime)
     // Step the physics simulation
     b2World_Step(worldId, deltaTime, 4); // Using 4 sub-steps as default
     
-    // Remove inactive bodies
     removeInactiveBodies();
 }
 
@@ -448,14 +447,9 @@ float RigidBodySystem::getMaterialRestitution(MaterialID material) const
 
 void RigidBodySystem::applyParticleForces(ParticleWorld* particleWorld)
 {
-    // This function would implement particle-to-rigid-body interaction
-    // For now, it's left as a stub for you to implement based on your ParticleWorld class
+
     if (!particleWorld) return;
-    
-    // Example implementation outline:
-    // 1. Iterate through all rigid bodies
-    // 2. For each body, check surrounding particles
-    // 3. Apply forces based on particle pressures/velocities
+
 }
 
 } // namespace SandSim

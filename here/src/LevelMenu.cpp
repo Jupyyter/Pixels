@@ -38,21 +38,21 @@ namespace SandSim
         {
             // Setup title - smaller size
             titleText.setFont(fonttt);
-            titleText.setCharacterSize(24); // Reduced from 36 to 24
+            titleText.setCharacterSize(24);
             titleText.setFillColor(sf::Color::White);
             titleText.setString("Select Level");
 
             sf::FloatRect titleBounds = titleText.getLocalBounds();
-            titleText.setPosition(sf::Vector2f((TEXTURE_WIDTH - titleBounds.size.x) / 2.0f, 8)); // Reduced from 15 to 8
+            titleText.setPosition(sf::Vector2f((TEXTURE_WIDTH - titleBounds.size.x) / 2.0f, 8));
 
             // Setup instructions - smaller size
             instructionsText.setFont(fonttt);
-            instructionsText.setCharacterSize(12); // Reduced from 14 to 12
+            instructionsText.setCharacterSize(12);
             instructionsText.setFillColor(sf::Color(200, 200, 200));
             instructionsText.setString(":)");
 
             sf::FloatRect instrBounds = instructionsText.getLocalBounds();
-            instructionsText.setPosition(sf::Vector2f((TEXTURE_WIDTH - instrBounds.size.x) / 2.0f, 38)); // Adjusted for smaller header
+            instructionsText.setPosition(sf::Vector2f((TEXTURE_WIDTH - instrBounds.size.x) / 2.0f, 38));
         }
 
         loadLevels();

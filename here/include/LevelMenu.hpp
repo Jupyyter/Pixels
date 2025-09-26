@@ -39,12 +39,12 @@ namespace SandSim {
         float dragStartOffset;
         
         // Dynamic layout parameters
-        int levelsPerRow;           // Number of levels per row
-        float paddingPercent;       // Padding as percentage of available width
-        int thumbnailWidth;         // Calculated thumbnail width
-        int thumbnailHeight;        // Calculated thumbnail height
-        int thumbnailMargin;        // Calculated margin between thumbnails
-        int edgePadding;           // Calculated padding from edges
+        int levelsPerRow;
+        float paddingPercent;
+        int thumbnailWidth;
+        int thumbnailHeight;
+        int thumbnailMargin;
+        int edgePadding;
         
         // Fixed constants
         static const int MENU_HEADER_HEIGHT = 60;
@@ -70,8 +70,7 @@ namespace SandSim {
         void handleMouseDrag(const sf::Vector2f& mousePos, bool pressed);
         void handleMouseWheel(float delta);
         void render(sf::RenderTarget& target);
-        // Add this method to LevelMenu class
-void refreshLevels();
+        void refreshLevels();
         
         int getSelectedLevel() const { return selectedLevel; }
         std::string getSelectedLevelFile() const;

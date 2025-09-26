@@ -6,7 +6,6 @@
 #include "Constants.hpp"
 #include "RigidBody.hpp"
 namespace SandSim {
-    // Forward declaration
     class ParticleWorld;
     
     enum class MaterialSelection {
@@ -78,7 +77,7 @@ namespace SandSim {
     RigidBodyShape getRigidBodyShape() const;
         // Public methods
         void setupMaterialButtons();
-        void setupSaveButton();  // New method
+        void setupSaveButton();
         void update(const sf::Vector2f& worldMousePos, float frameTime, bool simulationRunning);
         bool handleClick(const sf::Vector2f& worldMousePos);
         void handleKeyPress(sf::Keyboard::Key key);
@@ -101,7 +100,7 @@ namespace SandSim {
         // Helper methods
         bool isPointInRect(const sf::Vector2f& point, const sf::Vector2i& rectPos, const sf::Vector2i& rectSize) const;
         void drawMaterialPanel();
-        void drawSaveButton();  // New method
+        void drawSaveButton();
         void drawSelectionCircle();
         bool loadFont();
     };

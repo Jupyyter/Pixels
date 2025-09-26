@@ -18,7 +18,6 @@ namespace SandSim {
         
         static Particle createSand() {
             auto p = Particle{MaterialID::Sand, 0.0f, {0.0f, 0.0f}, MAT_COL_SAND, false};
-            // Add slight color variation
             p.color.r += Random::randInt(-20, 20);
             p.color.g += Random::randInt(-20, 20);
             p.color.b += Random::randInt(-20, 20);

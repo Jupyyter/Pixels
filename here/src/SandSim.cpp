@@ -11,10 +11,8 @@ SandSimApp::SandSimApp() : running(true), simulationRunning(true), frameTime(0.0
     window.setFramerateLimit(60);
     window.setVerticalSyncEnabled(false);
     
-    // Initialize level menu first
     levelMenu = std::make_unique<LevelMenu>();
     
-    // Don't initialize world and UI yet - wait for level selection
     renderer = std::make_unique<Renderer>();
     
     // Initialize random seed
@@ -31,7 +29,6 @@ void SandSimApp::run() {
 
 void SandSimApp::handleEvents() {
     while (auto event = window.pollEvent()) {
-        // SFML 3 uses direct access to event members
         if (event->is<sf::Event::Closed>()) {
             running = false;
         }
@@ -53,7 +50,6 @@ void SandSimApp::handleEvents() {
 }
 
 void SandSimApp::handleMenuEvents(const sf::Event& event) {
-    // FIXED: Use level menu coordinate conversion instead of game world coordinates
     sf::Vector2f windowMousePos = sf::Vector2f(
         static_cast<float>(sf::Mouse::getPosition(window).x), 
         static_cast<float>(sf::Mouse::getPosition(window).y)
@@ -84,7 +80,6 @@ void SandSimApp::handleMenuEvents(const sf::Event& event) {
             running = false;
         }
     }
-    // ADDED: Handle resize events in menu state too
     else if (auto resizeEvent = event.getIf<sf::Event::Resized>()) {
         handleResize(resizeEvent->size.x, resizeEvent->size.y);
     }
@@ -220,7 +215,7 @@ void SandSimApp::handleMouseHeld() {
 }
 
 void SandSimApp::handleResize(unsigned int width, unsigned int height) {
-    // Update view to maintain aspect ratio - SFML 3 constructor signature
+    // Update view to maintain aspect ratio
     sf::FloatRect visibleArea({0.0f, 0.0f}, {static_cast<float>(width), static_cast<float>(height)});
     window.setView(sf::View(visibleArea));
 }

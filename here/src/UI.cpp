@@ -15,7 +15,7 @@ UI::UI(ParticleWorld* worldPtr) : currentSelection(MaterialSelection::Sand),
            uiTexture(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT)),
            uiSprite(uiTexture.getTexture()),
            fontLoaded(false),
-           world(worldPtr){  // Initialize world pointer
+           world(worldPtr){
 
     // Apply no-repeat settings to UI texture to prevent edge bleeding
     const_cast<sf::Texture&>(uiTexture.getTexture()).setRepeated(false);
@@ -58,14 +58,11 @@ UI::UI(ParticleWorld* worldPtr) : currentSelection(MaterialSelection::Sand),
     }
 
     setupMaterialButtons();
-    setupSaveButton();  // Initialize save button
+    setupSaveButton();
 }
 // Fixed setupSaveButton method - place this in your UI.cpp file
 
 void UI::setupSaveButton() {
-    // Position button right under the controls text
-    // Controls text is at {10, 70} and has 3 lines with font size 12
-    // Each line is approximately 14-16 pixels tall (font size + line spacing)
     int controlsTextHeight = 3 * 16; // 3 lines * ~16px per line
     int buttonY = 70 + controlsTextHeight + 10; // controls Y + text height + 10px gap
     
@@ -80,8 +77,7 @@ void UI::setupSaveButton() {
             static_cast<int>(textBounds.size.y) + 10
         };
     } else {
-        // Fallback size if font isn't loaded
-        saveButton.size = {100, 30}; // Reasonable default size
+        saveButton.size = {100, 30};
     }
     
     // Position button on the LEFT side, aligned with controls text
@@ -99,7 +95,7 @@ void UI::setupSaveButton() {
         float textY = saveButton.position.y + 
                       (saveButton.size.y - textBounds.size.y) / 2.f - textBounds.position.y;
 
-        saveButtonText.setPosition({textX, textY});  // SFML 3 syntax
+        saveButtonText.setPosition({textX, textY});
     }
 }
 bool UI::handleClick(const sf::Vector2f& worldMousePos) {
@@ -109,7 +105,7 @@ bool UI::handleClick(const sf::Vector2f& worldMousePos) {
     if (isPointInRect(worldMousePos, saveButton.position, saveButton.size)) {
         if (world != nullptr) {
             saveButton.isPressed = true;
-            world->saveWorld("world");  // Call save method
+            world->saveWorld("world");
             std::cout << "Save button clicked!" << std::endl;
         } else {
             std::cerr << "Warning: World reference not set in UI!" << std::endl;
