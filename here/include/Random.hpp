@@ -1,7 +1,6 @@
 #pragma once
 #include <random>
 
-namespace SandSim {
     class Random {
     private:
         static std::random_device rd;
@@ -41,4 +40,3 @@ namespace SandSim {
             return randInt(0, oneInN - 1) == 0;
         }
     };
-}

@@ -1,22 +1,18 @@
-// Add these additions to your ParticleWorld.hpp header:
-
 #pragma once
 #include <vector>
 #include <memory>
 #include <cstdint>
 #include <SFML/Graphics.hpp>
-#include "Particle.hpp"
+#include "particles/Particle.hpp"
 #include "Constants.hpp"
 #include "Random.hpp"
-#include "RigidBody.hpp"  // Add this include
+#include "RigidBody.hpp"
 #include <iostream>
 
-namespace SandSim
-{
     class ParticleWorld
     {
     private:
-        std::vector<Particle> particles;
+        std::vector<std::unique_ptr<Particle>> particles;
         std::vector<std::uint8_t> pixelBuffer;
         int width, height;
         uint32_t frameCounter;
@@ -37,17 +33,12 @@ namespace SandSim
         // Coordinate/bounds utilities
         int computeIndex(int x, int y) const { return y * width + x; }
         bool inBounds(int x, int y) const { return x >= 0 && x < width && y >= 0 && y < height; }
-        bool isEmpty(int x, int y) const { return inBounds(x, y) && particles[computeIndex(x, y)].id == MaterialID::Empty; }
+        bool isEmpty(int x, int y) const { return inBounds(x, y) && particles[computeIndex(x, y)].get()->id == MaterialID::EmptyParticle; }
 
         // Particle access
-        Particle &getParticleAt(int x, int y) { return particles[computeIndex(x, y)]; }
-        const Particle &getParticleAt(int x, int y) const { return particles[computeIndex(x, y)]; }
-        void setParticleAt(int x, int y, const Particle &particle);
+        Particle *getParticleAt(int x, int y) { return particles[computeIndex(x, y)].get(); }
+        void setParticleAt(int x, int y, std::unique_ptr<Particle>);
         void swapParticles(int x1, int y1, int x2, int y2);
-
-        // Liquid detection utilities
-        bool isInLiquid(int x, int y, int *lx, int *ly) const;
-        bool isInWater(int x, int y, int *lx, int *ly) const;
 
         // Main simulation update
         void update(float deltaTime);
@@ -66,25 +57,6 @@ namespace SandSim
         RigidBodySystem* getRigidBodySystem() { return rigidBodySystem.get(); }
 
         // Factory method for creating particles by type - make this public so RigidBodySystem can use it
-        Particle createParticleByType(MaterialID type);
+        std::unique_ptr<Particle> createParticleByType(MaterialID type);
 
-    private:
-        // Movement algorithms for different physics types
-        void updateLiquidMovement(int x, int y, float dt, float horizontalChance, float velocityMultiplier);
-        void updateSolidMovement(int x, int y, float dt, bool canDisplaceLiquids);
-        void updateGasMovement(int x, int y, float dt, float buoyancy, float horizontalDrift);
-
-        // Material-specific update functions
-        void updateSand(int x, int y, float dt);
-        void updateWater(int x, int y, float dt);
-        void updateSalt(int x, int y, float dt);
-        void updateFire(int x, int y, float dt);
-        void updateSmoke(int x, int y, float dt);
-        void updateEmber(int x, int y, float dt);
-        void updateSteam(int x, int y, float dt);
-        void updateGunpowder(int x, int y, float dt);
-        void updateOil(int x, int y, float dt);
-        void updateLava(int x, int y, float dt);
-        void updateAcid(int x, int y, float dt);
     };
-}

@@ -4,10 +4,8 @@
 #include <vector>
 #include <memory>
 #include "Constants.hpp"
-#include "Particle.hpp"
+#include "particles/Particle.hpp"
 #include <algorithm>
-namespace SandSim
-{
     enum class RigidBodyShape
     {
         Circle,
@@ -81,5 +79,3 @@ namespace SandSim
         float getMaterialFriction(MaterialID material) const;
         float getMaterialRestitution(MaterialID material) const;
     };
-
-} // namespace SandSim

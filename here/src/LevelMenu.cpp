@@ -5,9 +5,6 @@
 #include <algorithm>
 #include <cmath>
 
-namespace SandSim
-{
-
     const float LevelMenu::ASPECT_RATIO = 4.0f / 3.0f; // 4:3 aspect ratio
 
     LevelMenu::LevelMenu(int levelsPerRow, float paddingPercent)
@@ -496,5 +493,3 @@ namespace SandSim
 
         target.draw(menuSprite);
     }
-
-} // namespace SandSim

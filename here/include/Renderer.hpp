@@ -3,7 +3,6 @@
 #include "ParticleWorld.hpp"
 #include "Constants.hpp"
 
-namespace SandSim {
     class Renderer {
     private:
         sf::Texture particleTexture;
@@ -30,4 +29,3 @@ namespace SandSim {
         void renderDirect(sf::RenderWindow& window);
         void renderWithPostProcessing(sf::RenderWindow& window);
     };
-}

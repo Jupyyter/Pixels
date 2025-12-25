@@ -7,6 +7,7 @@
             "${workspaceFolder}/../SFML-3.0.0/include",
             "${workspaceFolder}/../glm/glm-master",
             "${workspaceFolder}/../2dbox/include",
+            "${workspaceFolder}/../imgui-src",
             "include"
         ],
 

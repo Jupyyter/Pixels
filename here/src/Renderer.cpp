@@ -1,8 +1,6 @@
 #include "Renderer.hpp"
 #include <iostream>
 
-namespace SandSim {
-
 Renderer::Renderer() : usePostProcessing(false), 
                        renderTexture(sf::Vector2u(TEXTURE_WIDTH, TEXTURE_HEIGHT)),
                        particleSprite(particleTexture) {
@@ -271,5 +269,3 @@ void Renderer::renderWithPostProcessing(sf::RenderWindow& window) {
     // Reset texture to original
     particleSprite.setTexture(particleTexture);
 }
-
-} // namespace SandSim

@@ -84,5 +84,6 @@
                 "numbers": "cpp",
                 "fstream": "cpp",
                 "set": "cpp"
-        }
+        },
+        "cmake.ignoreCMakeListsMissing": true
 }

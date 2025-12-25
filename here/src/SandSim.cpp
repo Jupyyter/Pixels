@@ -1,420 +1,331 @@
 #include "SandSim.hpp"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
+#include <imgui.h>
+#include <imgui-SFML.h>
 
-namespace SandSim {
+// Camera Constants
+constexpr float CAMERA_MARGIN = 50.0f; // Fixed pixel margin outside the canvas
 
-SandSimApp::SandSimApp() : running(true), simulationRunning(true), frameTime(0.0f), 
-                          hasPreviousMousePos(false), currentState(GameState::MENU) {
+SandSimApp::SandSimApp() : 
+    running(true), simulationRunning(true), frameTime(0.0f), 
+    hasPreviousMousePos(false), currentState(GameState::MENU),
+    currentZoom(1.0f), isPanning(false)
+{
     // Initialize window
-    window.create(sf::VideoMode({static_cast<unsigned int>(WINDOW_WIDTH), static_cast<unsigned int>(WINDOW_HEIGHT)}), "Sand Simulation - SFML 3");
-    window.setFramerateLimit(60);
-    window.setVerticalSyncEnabled(false);
-    
+    window.create(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Sand Simulation - SFML 3");
+    window.setFramerateLimit(144);
+    window.setVerticalSyncEnabled(true); // Ensures smooth updates
+
+    // Initialize ImGui-SFML
+    if (!ImGui::SFML::Init(window)) {
+        std::cerr << "Failed to initialize ImGui-SFML" << std::endl;
+    }
+
     levelMenu = std::make_unique<LevelMenu>();
-    
     renderer = std::make_unique<Renderer>();
     
-    // Initialize random seed
+    // Initialize the Game Camera
+    gameView.setSize({static_cast<float>(TEXTURE_WIDTH), static_cast<float>(TEXTURE_HEIGHT)});
+    gameView.setCenter({static_cast<float>(TEXTURE_WIDTH) / 2.f, static_cast<float>(TEXTURE_HEIGHT) / 2.f});
+
+    // Initial resize to set up viewport
+    handleResize(window.getSize().x, window.getSize().y);
+
     Random::setSeed(static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
 }
 
+SandSimApp::~SandSimApp() {
+    ImGui::SFML::Shutdown();
+}
+
 void SandSimApp::run() {
+    // Ensure clocks are started before the loop
+    clock.restart();
+    frameClock.restart();
+
     while (running && window.isOpen()) {
+        // 1. Process all events (non-blocking)
         handleEvents();
+
+        // 2. Continuous Logic (Movement / Panning / Spawning)
+        if (currentState == GameState::PLAYING) {
+            if (isPanning) {
+                sf::Vector2i currentPos = sf::Mouse::getPosition(window);
+                sf::Vector2f delta = sf::Vector2f(lastMousePos - currentPos);
+                gameView.move(delta * currentZoom);
+                lastMousePos = currentPos;
+                constrainView();
+            } else if (!isMouseOverUI()) {
+                if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) || 
+                    sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
+                    handleMouseHeld();
+                } else {
+                    hasPreviousMousePos = false;
+                }
+            }
+        }
+
+        // 3. Update simulation and ImGui (Fixed: Happens every frame)
         update();
+
+        // 4. Draw everything (Fixed: Happens every frame)
         render();
     }
 }
 
+void SandSimApp::constrainView() {
+    sf::Vector2f viewSize = gameView.getSize();
+    sf::Vector2f center = gameView.getCenter();
+
+    // The maximum allowed width/height is Canvas + Margin on both sides
+    float maxAllowedWidth = static_cast<float>(TEXTURE_WIDTH) + (CAMERA_MARGIN * 2.0f);
+    float maxAllowedHeight = static_cast<float>(TEXTURE_HEIGHT) + (CAMERA_MARGIN * 2.0f);
+
+    // 1. Constraint: Zoom cannot exceed Canvas + Margin
+    if (viewSize.x > maxAllowedWidth || viewSize.y > maxAllowedHeight) {
+        float ratio = viewSize.x / viewSize.y;
+        if (maxAllowedWidth / ratio <= maxAllowedHeight) {
+            viewSize = {maxAllowedWidth, maxAllowedWidth / ratio};
+        } else {
+            viewSize = {maxAllowedHeight * ratio, maxAllowedHeight};
+        }
+        gameView.setSize(viewSize);
+        currentZoom = viewSize.x / static_cast<float>(TEXTURE_WIDTH);
+    }
+
+    // 2. Constraint: Keep camera edges inside the Margin bounds
+    float limitLeft = -CAMERA_MARGIN;
+    float limitRight = static_cast<float>(TEXTURE_WIDTH) + CAMERA_MARGIN;
+    float limitTop = -CAMERA_MARGIN;
+    float limitBottom = static_cast<float>(TEXTURE_HEIGHT) + CAMERA_MARGIN;
+
+    float minCenterX = limitLeft + (viewSize.x / 2.f);
+    float maxCenterX = limitRight - (viewSize.x / 2.f);
+    float minCenterY = limitTop + (viewSize.y / 2.f);
+    float maxCenterY = limitBottom - (viewSize.y / 2.f);
+
+    center.x = std::clamp(center.x, minCenterX, maxCenterX);
+    center.y = std::clamp(center.y, minCenterY, maxCenterY);
+
+    gameView.setCenter(center);
+}
+
 void SandSimApp::handleEvents() {
-    while (auto event = window.pollEvent()) {
+    while (const std::optional event = window.pollEvent()) {
+        if (currentState == GameState::PLAYING) {
+            ImGui::SFML::ProcessEvent(window, *event);
+        }
+
         if (event->is<sf::Event::Closed>()) {
             running = false;
         }
-        
+
+        // Zoom Handling
+        if (const auto* scroll = event->getIf<sf::Event::MouseWheelScrolled>()) {
+            if (currentState == GameState::PLAYING && !isMouseOverUI()) {
+                handleZoom(scroll->delta, sf::Mouse::getPosition(window));
+            }
+        }
+
+        // Middle Mouse Panning Toggle
+        if (const auto* mouseBtn = event->getIf<sf::Event::MouseButtonPressed>()) {
+            if (mouseBtn->button == sf::Mouse::Button::Middle) {
+                isPanning = true;
+                lastMousePos = sf::Mouse::getPosition(window);
+            }
+        }
+        if (const auto* mouseBtn = event->getIf<sf::Event::MouseButtonReleased>()) {
+            if (mouseBtn->button == sf::Mouse::Button::Middle) {
+                isPanning = false;
+            }
+        }
+
         if (currentState == GameState::MENU) {
             handleMenuEvents(*event);
-        } else if (currentState == GameState::PLAYING) {
+        } else {
             handleGameEvents(*event);
         }
     }
-    
-    // Handle continuous input based on current state
-    if (currentState == GameState::PLAYING) {
-        // Handle continuous mouse input for game
-        if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) || sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
-            handleMouseHeld();
-        }
-    }
 }
 
-void SandSimApp::handleMenuEvents(const sf::Event& event) {
-    sf::Vector2f windowMousePos = sf::Vector2f(
-        static_cast<float>(sf::Mouse::getPosition(window).x), 
-        static_cast<float>(sf::Mouse::getPosition(window).y)
-    );
-    sf::Vector2f menuMousePos = levelMenu->windowToMenuCoords(windowMousePos, window);
+void SandSimApp::handleZoom(float delta, const sf::Vector2i& mousePos) {
+    sf::Vector2f worldBefore = window.mapPixelToCoords(mousePos, gameView);
+    float factor = (delta > 0) ? 0.9f : 1.1f;
     
-    if (auto mouseEvent = event.getIf<sf::Event::MouseButtonPressed>()) {
-        if (mouseEvent->button == sf::Mouse::Button::Left) {
-            if (levelMenu->handleClick(menuMousePos)) {
-                // Level selected, switch to game
-                std::string selectedFile = levelMenu->getSelectedLevelFile();
-                if (!selectedFile.empty()) {
-                    startGame(selectedFile);
-                }
-            }
-        }
-    }
-    else if (event.is<sf::Event::MouseMoved>()) {
-        bool pressed = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
-        levelMenu->handleMouseDrag(menuMousePos, pressed);
-        levelMenu->update(menuMousePos);
-    }
-    else if (auto wheelEvent = event.getIf<sf::Event::MouseWheelScrolled>()) {
-        levelMenu->handleMouseWheel(wheelEvent->delta);
-    }
-    else if (auto keyEvent = event.getIf<sf::Event::KeyPressed>()) {
-        if (keyEvent->code == sf::Keyboard::Key::Escape) {
-            running = false;
-        }
-    }
-    else if (auto resizeEvent = event.getIf<sf::Event::Resized>()) {
-        handleResize(resizeEvent->size.x, resizeEvent->size.y);
-    }
-}
+    gameView.zoom(factor);
+    currentZoom *= factor;
 
-void SandSimApp::handleGameEvents(const sf::Event& event) {
-    if (auto keyEvent = event.getIf<sf::Event::KeyPressed>()) {
-        if (keyEvent->code == sf::Keyboard::Key::Escape) {
-            // Return to menu
-            returnToMenu();
-            return;
-        }
-        handleKeyPress(keyEvent->code);
-        if (ui) {
-            ui->handleKeyPress(keyEvent->code);
-        }
-    }
-    else if (auto wheelEvent = event.getIf<sf::Event::MouseWheelScrolled>()) {
-        if (ui) {
-            ui->handleMouseWheel(wheelEvent->delta);
-        }
-    }
-    else if (auto mouseEvent = event.getIf<sf::Event::MouseButtonPressed>()) {
-        handleMousePress(*mouseEvent);
-    }
-    else if (auto mouseEvent = event.getIf<sf::Event::MouseButtonReleased>()) {
-        handleMouseRelease(*mouseEvent);
-    }
-    else if (auto resizeEvent = event.getIf<sf::Event::Resized>()) {
-        handleResize(resizeEvent->size.x, resizeEvent->size.y);
-    }
-}
-
-void SandSimApp::startGame(const std::string& worldFile) {
-    // Initialize world with selected level
-    world = std::make_unique<ParticleWorld>(TEXTURE_WIDTH, TEXTURE_HEIGHT, worldFile);
-    ui = std::make_unique<UI>(world.get());
-    currentState = GameState::PLAYING;
+    sf::Vector2f worldAfter = window.mapPixelToCoords(mousePos, gameView);
+    gameView.move(worldBefore - worldAfter);
     
-    std::cout << "Started game with level: " << worldFile << std::endl;
-}
-
-void SandSimApp::returnToMenu() {
-    // Clean up game objects
-    world.reset();
-    ui.reset();
-    
-    // Reset level menu selection and refresh levels to show any newly saved worlds
-    levelMenu->resetSelection();
-    levelMenu->refreshLevels();  // This will reload the levels from the worlds directory
-    currentState = GameState::MENU;
-}
-
-void SandSimApp::handleKeyPress(sf::Keyboard::Key key) {
-    switch (key) {            
-        case sf::Keyboard::Key::Space:
-            simulationRunning = !simulationRunning;
-            break;
-            
-        case sf::Keyboard::Key::R:
-            if (world) {
-                world->clear();
-            }
-            break;
-            
-        case sf::Keyboard::Key::B:
-            renderer->setUsePostProcessing(!renderer->getUsePostProcessing());
-            break;
-            
-        default:
-            break;
-    }
-}
-
-void SandSimApp::handleMousePress(const sf::Event::MouseButtonPressed& mouseButton) {
-    sf::Vector2f worldPos = screenToWorldCoordinates(sf::Vector2f(static_cast<float>(mouseButton.position.x), static_cast<float>(mouseButton.position.y)));
-    
-    // Check if UI consumed the click first
-    if (ui && ui->handleClick(worldPos)) {
-        return; // UI handled it, don't spawn particles
-    }
-    
-    // Check if mouse is over UI area (prevent spawning when over UI)
-    if (isMouseOverUI(worldPos)) {
-        return; // Don't spawn particles when over UI
-    }
-    
-    // Handle world interaction only if not over UI
-    if (mouseButton.button == sf::Mouse::Button::Left) {
-        addParticles(worldPos);
-        previousMouseWorldPos = worldPos;
-        hasPreviousMousePos = true;
-    } else if (mouseButton.button == sf::Mouse::Button::Right) {
-        eraseParticles(worldPos);
-        previousMouseWorldPos = worldPos;
-        hasPreviousMousePos = true;
-    }
-}
-
-void SandSimApp::handleMouseRelease(const sf::Event::MouseButtonReleased& mouseButton) {
-    // Reset mouse tracking when button is released
-    hasPreviousMousePos = false;
-}
-
-void SandSimApp::handleMouseHeld() {
-    sf::Vector2i mousePixelPos = sf::Mouse::getPosition(window);
-    sf::Vector2f worldPos = screenToWorldCoordinates(sf::Vector2f(static_cast<float>(mousePixelPos.x), static_cast<float>(mousePixelPos.y)));
-    
-    // Check if mouse is over UI - if so, don't spawn/erase particles
-    if (isMouseOverUI(worldPos)) {
-        return;
-    }
-    
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
-        if (hasPreviousMousePos) {
-            // Draw a line from previous position to current position
-            addParticlesLine(previousMouseWorldPos, worldPos);
-        } else {
-            addParticles(worldPos);
-        }
-        previousMouseWorldPos = worldPos;
-        hasPreviousMousePos = true;
-    } else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
-        if (hasPreviousMousePos) {
-            // Draw a line from previous position to current position
-            eraseParticlesLine(previousMouseWorldPos, worldPos);
-        } else {
-            eraseParticles(worldPos);
-        }
-        previousMouseWorldPos = worldPos;
-        hasPreviousMousePos = true;
-    }
+    constrainView();
 }
 
 void SandSimApp::handleResize(unsigned int width, unsigned int height) {
-    // Update view to maintain aspect ratio
-    sf::FloatRect visibleArea({0.0f, 0.0f}, {static_cast<float>(width), static_cast<float>(height)});
-    window.setView(sf::View(visibleArea));
-}
-
-sf::Vector2f SandSimApp::screenToWorldCoordinates(const sf::Vector2f& screenPos) {
-    // Convert screen coordinates to world coordinates
-    sf::Vector2u windowSize = window.getSize();
+    float windowRatio = static_cast<float>(width) / height;
+    float worldRatio = static_cast<float>(TEXTURE_WIDTH) / TEXTURE_HEIGHT;
+    sf::FloatRect viewport({0.f, 0.f}, {1.f, 1.f});
     
-    // Calculate scale used by renderer
-    float scaleX = static_cast<float>(windowSize.x) / TEXTURE_WIDTH;
-    float scaleY = static_cast<float>(windowSize.y) / TEXTURE_HEIGHT;
-    float scale = std::min(scaleX, scaleY);
-    
-    // Calculate offset used by renderer
-    float offsetX = (windowSize.x - TEXTURE_WIDTH * scale) / 2.0f;
-    float offsetY = (windowSize.y - TEXTURE_HEIGHT * scale) / 2.0f;
-    
-    // Convert to world coordinates
-    float worldX = (screenPos.x - offsetX) / scale;
-    float worldY = (screenPos.y - offsetY) / scale;
-    
-    return sf::Vector2f(worldX, worldY);
-}
-
-bool SandSimApp::isMouseOverUI(const sf::Vector2f& worldPos) {
-    // Only check UI collision if we're in game and UI exists
-    if (currentState != GameState::PLAYING || !ui) {
-        return false;
+    if (windowRatio > worldRatio) {
+        float p = worldRatio / windowRatio;
+        viewport.position.x = (1.0f - p) / 2.0f;
+        viewport.size.x = p;
+    } else {
+        float p = windowRatio / worldRatio;
+        viewport.position.y = (1.0f - p) / 2.0f;
+        viewport.size.y = p;
     }
-    
-    // Only consider mouse over UI if the material panel is actually shown
-    if (!ui->getShowMaterialPanel()) {
-        return false;
-    }
-
-    // Calculate the correct bounding box of the material selection panel
-    float panelLeft = static_cast<float>(TEXTURE_WIDTH - UI_PANEL_X_OFFSET);
-    float panelRight = static_cast<float>(TEXTURE_WIDTH - UI_PANEL_X_OFFSET + UI_PANEL_BUTTON_SIZE);
-
-    // The buttons start at UI_PANEL_BASE Y and each button is UI_PANEL_BUTTON_SIZE tall
-    float panelTop = static_cast<float>(UI_PANEL_BASE);
-    size_t numButtons = ui->getMaterialButtons().size();
-    
-    // Account for save button (it's wider and positioned below material buttons)
-    float saveButtonBottom = static_cast<float>(UI_PANEL_BASE + numButtons * UI_PANEL_OFFSET + 20 + UI_PANEL_BUTTON_SIZE);
-    float panelBottom = saveButtonBottom;
-
-    // Add some padding to make it easier to interact with UI
-    const float UI_PADDING = 5.0f;
-    panelLeft -= UI_PADDING;
-    panelRight += UI_PADDING;
-    panelTop -= UI_PADDING;
-    panelBottom += UI_PADDING;
-
-    // Check if the world mouse position is within these calculated bounds
-    bool overUI = worldPos.x >= panelLeft && worldPos.x <= panelRight &&
-                 worldPos.y >= panelTop && worldPos.y <= panelBottom;
-
-    return overUI;
-}
-
-void SandSimApp::addParticles(const sf::Vector2f& worldPos) {
-    if (!world || !ui) return;
-    
-    int x = static_cast<int>(worldPos.x);
-    int y = static_cast<int>(worldPos.y);
-    
-    if (x >= 0 && x < TEXTURE_WIDTH && y >= 0 && y < TEXTURE_HEIGHT) {
-        // Check if current selection is a rigid body
-        if (ui->isCurrentSelectionRigidBody()) {
-            // Spawn rigid body instead of particles
-            RigidBodyShape shape = ui->getRigidBodyShape();
-            MaterialID materialType = ui->getCurrentMaterialID();
-            float size = ui->getSelectionRadius() * 2.0f; // Use selection radius as size
-            
-            world->addRigidBody(x, y, size, shape, materialType);
-        } else {
-            // Spawn regular particles
-            world->addParticleCircle(x, y, ui->getSelectionRadius(), ui->getCurrentMaterialID());
-        }
-    }
-}
-
-void SandSimApp::eraseParticles(const sf::Vector2f& worldPos) {
-    if (!world || !ui) return;
-    
-    int x = static_cast<int>(worldPos.x);
-    int y = static_cast<int>(worldPos.y);
-    
-    if (x >= 0 && x < TEXTURE_WIDTH && y >= 0 && y < TEXTURE_HEIGHT) {
-        world->eraseCircle(x, y, ui->getSelectionRadius());
-    }
-}
-
-void SandSimApp::addParticlesLine(const sf::Vector2f& startPos, const sf::Vector2f& endPos) {
-    if (!ui) return;
-    
-    // Don't create rigid bodies along lines - only at discrete points
-    if (ui->isCurrentSelectionRigidBody()) {
-        addParticles(endPos);
-        return;
-    }
-    
-    // Calculate the distance between start and end positions
-    float dx = endPos.x - startPos.x;
-    float dy = endPos.y - startPos.y;
-    float distance = std::sqrt(dx * dx + dy * dy);
-    
-    // If the distance is very small, just add particles at the current position
-    if (distance < 1.0f) {
-        addParticles(endPos);
-        return;
-    }
-    
-    // Calculate the number of steps based on the distance and brush radius
-    float stepSize = std::max(1.0f, ui->getSelectionRadius() * 0.5f);
-    int steps = static_cast<int>(std::ceil(distance / stepSize));
-    
-    // Draw particles along the line
-    for (int i = 0; i <= steps; ++i) {
-        float t = (steps > 0) ? static_cast<float>(i) / static_cast<float>(steps) : 0.0f;
-        sf::Vector2f currentPos(
-            startPos.x + t * dx,
-            startPos.y + t * dy
-        );
-        addParticles(currentPos);
-    }
-}
-void SandSimApp::eraseParticlesLine(const sf::Vector2f& startPos, const sf::Vector2f& endPos) {
-    if (!ui) return;
-    
-    // Calculate the distance between start and end positions
-    float dx = endPos.x - startPos.x;
-    float dy = endPos.y - startPos.y;
-    float distance = std::sqrt(dx * dx + dy * dy);
-    
-    // If the distance is very small, just erase particles at the current position
-    if (distance < 1.0f) {
-        eraseParticles(endPos);
-        return;
-    }
-    
-    // Calculate the number of steps based on the distance and brush radius
-    float stepSize = std::max(1.0f, ui->getSelectionRadius() * 0.5f);
-    int steps = static_cast<int>(std::ceil(distance / stepSize));
-    
-    // Erase particles along the line
-    for (int i = 0; i <= steps; ++i) {
-        float t = (steps > 0) ? static_cast<float>(i) / static_cast<float>(steps) : 0.0f;
-        sf::Vector2f currentPos(
-            startPos.x + t * dx,
-            startPos.y + t * dy
-        );
-        eraseParticles(currentPos);
-    }
+    gameView.setViewport(viewport);
+    constrainView();
 }
 
 void SandSimApp::update() {
+    sf::Time dt = clock.restart();
+    frameTime = static_cast<float>(frameClock.restart().asMilliseconds());
+
     if (currentState == GameState::PLAYING) {
-        sf::Time deltaTime = clock.restart();
+        if (ui) ui->update(window, dt, simulationRunning, frameTime);
         
-        // Measure frame time
-        frameTime = static_cast<float>(frameClock.restart().asMilliseconds());
-        
-        // Update simulation
+        // Simulation logic: called every frame if simulationRunning is true
         if (simulationRunning && world) {
-            world->update(deltaTime.asSeconds());
-        }
-        
-        // Update UI
-        if (ui) {
-            sf::Vector2i mousePixelPos = sf::Mouse::getPosition(window);
-            sf::Vector2f worldMousePos = screenToWorldCoordinates(sf::Vector2f(static_cast<float>(mousePixelPos.x), static_cast<float>(mousePixelPos.y)));
-            ui->update(worldMousePos, frameTime, simulationRunning);
+            world->update(dt.asSeconds());
         }
     }
-    // Menu doesn't need update in the main loop - it's handled in events
 }
 
 void SandSimApp::render() {
-    // Clear window
-    window.clear(sf::Color(20, 20, 20));
+    window.clear(sf::Color(0, 0, 0));
     
     if (currentState == GameState::MENU) {
-        // Render menu
+        window.setView(window.getDefaultView());
         levelMenu->render(window);
-    } else if (currentState == GameState::PLAYING) {
-        // Render game
+    } 
+    else if (currentState == GameState::PLAYING) {
+        // 1. Draw Simulation World using Game Camera
+        window.setView(gameView);
+
+        // Draw Canvas Border (Purple)
+        sf::RectangleShape border;
+        border.setSize({static_cast<float>(TEXTURE_WIDTH), static_cast<float>(TEXTURE_HEIGHT)});
+        border.setFillColor(sf::Color::Transparent);
+        border.setOutlineColor(sf::Color(160, 32, 240)); // Purple
+        border.setOutlineThickness(2.0f / currentZoom);
+        window.draw(border);
+
         if (world && renderer) {
             renderer->render(window, *world);
         }
         
-        if (ui) {
-            ui->render(window);
+        // Draw Brush Guide
+        if (!isMouseOverUI() && !isPanning) {
+            sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), gameView);
+            sf::CircleShape brush(ui->getSelectionRadius());
+            brush.setOrigin({ui->getSelectionRadius(), ui->getSelectionRadius()});
+            brush.setPosition(worldPos);
+            brush.setFillColor(sf::Color(255, 255, 255, 40));
+            brush.setOutlineColor(sf::Color(255, 255, 255, 180));
+            brush.setOutlineThickness(1.0f / currentZoom);
+            window.draw(brush);
         }
+
+        // 2. Draw ImGui UI using Screen View (fixed position)
+        window.setView(window.getDefaultView());
+        if (ui) ui->render(window);
     }
     
-    // Display
     window.display();
 }
 
-} // namespace SandSim
+void SandSimApp::startGame(const std::string& worldFile) {
+    world = std::make_unique<ParticleWorld>(TEXTURE_WIDTH, TEXTURE_HEIGHT, worldFile);
+    ui = std::make_unique<UI>(window, world.get());
+    
+    currentZoom = 1.0f;
+    gameView.setSize({static_cast<float>(TEXTURE_WIDTH), static_cast<float>(TEXTURE_HEIGHT)});
+    gameView.setCenter({static_cast<float>(TEXTURE_WIDTH) / 2.f, static_cast<float>(TEXTURE_HEIGHT) / 2.f});
+    
+    currentState = GameState::PLAYING;
+    handleResize(window.getSize().x, window.getSize().y);
+}
+
+void SandSimApp::returnToMenu() {
+    world.reset();
+    ui.reset();
+    currentState = GameState::MENU;
+}
+
+void SandSimApp::handleMouseHeld() {
+    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+    sf::Vector2f worldPos = window.mapPixelToCoords(mousePos, gameView);
+    
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
+        if (hasPreviousMousePos) addParticlesLine(previousMouseWorldPos, worldPos);
+        else addParticles(worldPos);
+        previousMouseWorldPos = worldPos;
+        hasPreviousMousePos = true;
+    } 
+    else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right)) {
+        if (hasPreviousMousePos) eraseParticlesLine(previousMouseWorldPos, worldPos);
+        else eraseParticles(worldPos);
+        previousMouseWorldPos = worldPos;
+        hasPreviousMousePos = true;
+    }
+}
+
+void SandSimApp::addParticles(const sf::Vector2f& worldPos) {
+    if (world && ui) world->addParticleCircle(worldPos.x, worldPos.y, ui->getSelectionRadius(), ui->getCurrentMaterialID());
+}
+
+void SandSimApp::eraseParticles(const sf::Vector2f& worldPos) {
+    if (world && ui) world->eraseCircle(worldPos.x, worldPos.y, ui->getSelectionRadius());
+}
+
+void SandSimApp::addParticlesLine(const sf::Vector2f& start, const sf::Vector2f& end) {
+    float dx = end.x - start.x, dy = end.y - start.y;
+    float dist = std::sqrt(dx*dx + dy*dy);
+    float stepSize = std::max(1.0f, ui->getSelectionRadius() * 0.5f);
+    int steps = static_cast<int>(std::ceil(dist / stepSize));
+    for(int i=0; i<=steps; ++i) {
+        float t = (steps > 0) ? (float)i/steps : 0.f;
+        addParticles({start.x + t*dx, start.y + t*dy});
+    }
+}
+
+void SandSimApp::eraseParticlesLine(const sf::Vector2f& start, const sf::Vector2f& end) {
+    float dx = end.x - start.x, dy = end.y - start.y;
+    float dist = std::sqrt(dx*dx + dy*dy);
+    float stepSize = std::max(1.0f, ui->getSelectionRadius() * 0.5f);
+    int steps = static_cast<int>(std::ceil(dist / stepSize));
+    for(int i=0; i<=steps; ++i) {
+        float t = (steps > 0) ? (float)i/steps : 0.f;
+        eraseParticles({start.x + t*dx, start.y + t*dy});
+    }
+}
+
+void SandSimApp::handleMenuEvents(const sf::Event& event) {
+    sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+    if (const auto* mousePress = event.getIf<sf::Event::MouseButtonPressed>()) {
+        if (mousePress->button == sf::Mouse::Button::Left) {
+            if (levelMenu->handleClick(worldPos)) {
+                std::string selected = levelMenu->getSelectedLevelFile();
+                if (!selected.empty()) startGame(selected);
+            }
+        }
+    }
+    else if (const auto* wheel = event.getIf<sf::Event::MouseWheelScrolled>()) levelMenu->handleMouseWheel(wheel->delta);
+    else if (const auto* key = event.getIf<sf::Event::KeyPressed>()) if (key->code == sf::Keyboard::Key::Escape) running = false;
+    levelMenu->update(worldPos);
+}
+
+void SandSimApp::handleGameEvents(const sf::Event& event) {
+    if (const auto* key = event.getIf<sf::Event::KeyPressed>()) {
+        if (key->code == sf::Keyboard::Key::Escape) returnToMenu();
+    }
+    else if (const auto* resize = event.getIf<sf::Event::Resized>()) handleResize(resize->size.x, resize->size.y);
+}
+
+bool SandSimApp::isMouseOverUI() {
+    return (currentState == GameState::PLAYING) && ImGui::GetIO().WantCaptureMouse;
+}

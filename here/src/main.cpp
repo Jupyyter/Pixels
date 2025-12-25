@@ -4,7 +4,7 @@
 
 int main() {
     try {
-        SandSim::SandSimApp app;
+        SandSimApp app;
         app.run();
     }
     catch (const std::exception& e) {

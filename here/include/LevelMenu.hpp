@@ -5,7 +5,6 @@
 #include <memory>
 #include "Constants.hpp"
 
-namespace SandSim {
     struct LevelInfo {
         std::string filename;
         std::string displayName;
@@ -93,4 +92,3 @@ namespace SandSim {
         bool loadFont();
         sf::Vector2f getLevelPosition(int index) const;
     };
-}
