@@ -1,66 +1,105 @@
+#pragma once
 #include "Particle.hpp"
 #include "ParticleWorld.hpp"
-#pragma once
+
 class Gas : public Particle {
 protected:
     float buoyancy;
     float chaosLevel;
     
 public:
-    Gas(MaterialID id, float buoy, float chaos) 
-        : Particle(id), buoyancy(buoy), chaosLevel(chaos) {}
-static MaterialGroup getStaticGroup() { return MaterialGroup::Gas; }
+    Gas(MaterialID id, float buoy, float chaos);
+    static MaterialGroup getStaticGroup() { return MaterialGroup::Gas; }
+    MaterialGroup getGroup() const override { return getStaticGroup(); }
+    
+    // Core Update
     void update(int x, int y, float dt, ParticleWorld& world) override;
+
+    // Interaction Logic
+    bool actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) override;
+    
+    // Helpers
+    bool compareGasDensities(Particle* neighbor);
+    void swapGasForDensities(ParticleWorld& world, Particle* neighbor, int neighborX, int neighborY, int& currentX, int& currentY);
+    
+    // Default overrides
+    void spawnSparkIfIgnited(ParticleWorld& world) override {}
+    bool corrode(ParticleWorld& world) override { return false; }
 };
+
 class Steam : public Gas {
 public:
-    // Buoyancy: 1.0f, Chaos: 1.8f
-    Steam() : Gas(MaterialID::Steam, 1.0f, 1.8f) {}
-
-    std::unique_ptr<Particle> clone() const override { 
-        return std::make_unique<Steam>(*this); 
+    Steam() : Gas(MaterialID::Steam, 1.0f, 1.8f) {
+        density = 5;
+        dispersionRate = 2;
+        mass = 1;
+        frictionFactor = 1.0f;
+        lifeSpan = Random::randInt(0, 2000) + 1000;
     }
-
-    void update(int x, int y, float dt, ParticleWorld& world) override ;
+    std::unique_ptr<Particle> clone() const override { return std::make_unique<Steam>(*this); }
+    
+    void checkLifeSpan(ParticleWorld& world) override;
+    bool receiveHeat(int heat) override { return false; }
 };
+
+class FlammableGas : public Gas {
+public:
+    FlammableGas() : Gas(MaterialID::FlammableGas, 1.0f, 1.8f) {
+        density = 1;
+        dispersionRate = 2;
+        lifeSpan = Random::randInt(0, 500) + 3000;
+        flammabilityResistance = 10;
+        resetFlammabilityResistance = 10;
+        health = 100;
+        mass = 1;
+    }
+    std::unique_ptr<Particle> clone() const override { return std::make_unique<FlammableGas>(*this); }
+};
+
+class Spark : public Gas {
+public:
+    Spark() : Gas(MaterialID::Spark, 1.0f, 1.8f) {
+        density = 4;
+        dispersionRate = 4;
+        lifeSpan = Random::randInt(0, 20); 
+        flammabilityResistance = 25;
+        isIgnited = true;
+        temperature = 3;
+        mass = 10;
+    }
+    std::unique_ptr<Particle> clone() const override { return std::make_unique<Spark>(*this); }
+
+    bool actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) override;
+    bool receiveHeat(int heat) override { return false; }
+};
+
+class ExplosionSpark : public Gas {
+public:
+    ExplosionSpark() : Gas(MaterialID::ExplosionSpark, 1.0f, 2.0f) {
+        density = 4;
+        dispersionRate = 4;
+        lifeSpan = Random::randInt(0, 20);
+        flammabilityResistance = 25;
+        isIgnited = true;
+        temperature = 3;
+        mass = 10;
+    }
+    std::unique_ptr<Particle> clone() const override { return std::make_unique<ExplosionSpark>(*this); }
+
+    bool actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) override;
+    bool receiveHeat(int heat) override { return false; }
+    void modifyColor() {} 
+};
+
 class Smoke : public Gas {
 public:
-    Smoke() : Gas(MaterialID::Smoke, 0.8f, 1.2f) {}
+    Smoke() : Gas(MaterialID::Smoke, 0.8f, 1.2f) {
+        density = 3;
+        dispersionRate = 2;
+        lifeSpan = Random::randInt(0, 250) + 450;
+        mass = 1;
+    }
     std::unique_ptr<Particle> clone() const override { return std::make_unique<Smoke>(*this); }
     
-    void update(int x, int y, float dt, ParticleWorld& world) override {
-        if (hasBeenUpdatedThisFrame) return;
-        hasBeenUpdatedThisFrame = true;
-
-        // Lifetime Logic
-        if (lifeTime > 15.0f) {
-            // Remove self (set to Empty in world)
-            world.setParticleAt(x, y, nullptr); // or createEmpty
-            return;
-        }
-
-        // Color fading logic
-        // ...
-
-        Gas::update(x, y, dt, world);
-    }
-};
-class Fire : public Gas {
-public:
-    // Fire acts like gas but has very specific update logic
-    Fire() : Gas(MaterialID::Fire, 0.0f, 0.0f) {} 
-    std::unique_ptr<Particle> clone() const override { return std::make_unique<Fire>(*this); }
-
-    void update(int x, int y, float dt, ParticleWorld& world) override {
-        if (hasBeenUpdatedThisFrame) return;
-        hasBeenUpdatedThisFrame = true;
-
-        // 1. Lifetime check
-        // 2. Color variation
-        // 3. Ignite neighbors
-        // 4. Create steam
-        
-        // Note: Your original fire code did NOT call updateGasMovement, 
-        // it just existed until it died. If you want it to rise, call Gas::update at the end.
-    }
+    bool receiveHeat(int heat) override { return false; }
 };

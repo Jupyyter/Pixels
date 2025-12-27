@@ -4,10 +4,13 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
+#include <memory> // Required for std::unique_ptr
+#include "RigidBody.hpp"
 #include "Particles/Liquid.hpp"
 #include "Particles/Gas.hpp"
 #include "Particles/MovableSolid.hpp"
 #include "Particles/ImmovableSolid.hpp"
+ParticleWorld::~ParticleWorld() = default;
 ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string &worldFile)
     : width(w), height(h), frameCounter(0)
 {
@@ -54,13 +57,13 @@ void ParticleWorld::setParticleAt(int x, int y, std::unique_ptr<Particle> partic
     int idx = computeIndex(x, y);
 
     // 1. Update pixel buffer first
-    // Since 'particle' is a pointer, we use '->' instead of '.'
     int pixelIdx = idx * 4;
     pixelBuffer[pixelIdx]     = particle->color.r;
     pixelBuffer[pixelIdx + 1] = particle->color.g;
     pixelBuffer[pixelIdx + 2] = particle->color.b;
     pixelBuffer[pixelIdx + 3] = particle->color.a;
 
+    particle->position = sf::Vector2i(x, y); 
     // 2. Move the unique_ptr into the storage vector
     // This transfers ownership. The 'particle' argument becomes null after this line.
     particles[idx] = std::move(particle);
@@ -75,6 +78,9 @@ void ParticleWorld::swapParticles(int x1, int y1, int x2, int y2) {
     // 1. Swap the pointers in the physics grid
     std::swap(particles[idx1], particles[idx2]);
 
+if (particles[idx1]) particles[idx1]->position = sf::Vector2i(x1, y1);
+    if (particles[idx2]) particles[idx2]->position = sf::Vector2i(x2, y2);
+
     // 2. Swap the colors in the pixel buffer (so the screen looks right)
     int pIdx1 = idx1 * 4;
     int pIdx2 = idx2 * 4;
@@ -83,7 +89,16 @@ void ParticleWorld::swapParticles(int x1, int y1, int x2, int y2) {
         std::swap(pixelBuffer[pIdx1 + i], pixelBuffer[pIdx2 + i]);
     }
 }
+void ParticleWorld::updatePixelColor(int x, int y, const sf::Color& color)
+{
+    if (!inBounds(x, y)) return;
 
+    int idx = computeIndex(x, y) * 4;
+    pixelBuffer[idx]     = color.r;
+    pixelBuffer[idx + 1] = color.g;
+    pixelBuffer[idx + 2] = color.b;
+    pixelBuffer[idx + 3] = color.a;
+}
 void ParticleWorld::addRigidBody(int centerX, int centerY, float size, RigidBodyShape shape, MaterialID materialType)
 {
     if (!rigidBodySystem) return;
@@ -140,11 +155,11 @@ void ParticleWorld::update(float deltaTime)
                 continue;
 
             // Skip updating rigid body particles (marked with lifetime -1.0f)
-            if (particle->lifeTime == -1.0f)
+            if (particle->lifeSpan == -1.0f)
                 continue;
 
             // Update particle lifetime
-            particle->lifeTime += deltaTime;
+            particle->lifeSpan += deltaTime;
             particle->update(x, y, deltaTime, *this);
         }
     }
@@ -155,6 +170,37 @@ void ParticleWorld::update(float deltaTime)
         {
             p->hasBeenUpdatedThisFrame = false;
         }
+    }
+}
+void ParticleWorld::updateParticleColor(Particle* particle, ParticleWorld& world) 
+{
+    if (!particle) return;
+
+    bool visualChanged = false;
+
+    //Handle Ignition (Fire Effect)
+    if (particle->isIgnited) 
+    {
+        // Generate a random flicker value
+        int flicker = Random::randInt(-30, 30);
+
+        // Calculate a "Hot" version of the default color
+        // Logic: Maximize Red, reduce Blue, fluctuate Green for orange/yellow tints
+        int r = std::min(255, particle->defaultColor.r + 100);
+        int g = std::clamp(particle->defaultColor.g + flicker - 20, 0, 255);
+        int b = std::max(0, particle->defaultColor.b - 50);
+
+        particle->color = sf::Color(r, g, b, 255);
+        visualChanged = true;
+    }
+    else if(particle->didColorChange ){
+        particle->didColorChange=false;
+        visualChanged=true;
+    }
+
+    if (visualChanged) 
+    {
+        world.updatePixelColor(particle->position.x, particle->position.y, particle->color);
     }
 }
 void ParticleWorld::addParticleCircle(int centerX, int centerY, float radius, MaterialID materialType)
@@ -260,7 +306,7 @@ bool ParticleWorld::saveWorld(const std::string& baseFilename)
                     file.write(reinterpret_cast<const char*>(&p->id), sizeof(p->id));
                     file.write(reinterpret_cast<const char*>(&p->velocity.x), sizeof(p->velocity.x));
                     file.write(reinterpret_cast<const char*>(&p->velocity.y), sizeof(p->velocity.y));
-                    file.write(reinterpret_cast<const char*>(&p->lifeTime), sizeof(p->lifeTime));
+                    file.write(reinterpret_cast<const char*>(&p->lifeSpan), sizeof(p->lifeSpan));
                     file.write(reinterpret_cast<const char*>(&p->color.r), sizeof(p->color.r));
                     file.write(reinterpret_cast<const char*>(&p->color.g), sizeof(p->color.g));
                     file.write(reinterpret_cast<const char*>(&p->color.b), sizeof(p->color.b));
@@ -342,7 +388,7 @@ bool ParticleWorld::loadWorld(const std::string& filename)
                 
                 file.read(reinterpret_cast<char*>(&p->velocity.x), sizeof(p->velocity.x));
                 file.read(reinterpret_cast<char*>(&p->velocity.y), sizeof(p->velocity.y));
-                file.read(reinterpret_cast<char*>(&p->lifeTime), sizeof(p->lifeTime));
+                file.read(reinterpret_cast<char*>(&p->lifeSpan), sizeof(p->lifeSpan));
                 file.read(reinterpret_cast<char*>(&p->color.r), sizeof(p->color.r));
                 file.read(reinterpret_cast<char*>(&p->color.g), sizeof(p->color.g));
                 file.read(reinterpret_cast<char*>(&p->color.b), sizeof(p->color.b));
@@ -364,8 +410,6 @@ bool ParticleWorld::loadWorld(const std::string& filename)
         return false;
     }
 }
-#include <memory> // Required for std::unique_ptr
-
 std::unique_ptr<Particle> ParticleWorld::createParticleByType(MaterialID type) {
     for (const auto& props : ALL_MATERIALS) {
         if (props.id == type) {
@@ -374,4 +418,7 @@ std::unique_ptr<Particle> ParticleWorld::createParticleByType(MaterialID type) {
     }
     // Return empty particle for MaterialID::Empty or unknown
     return std::make_unique<EmptyParticle>(); 
+}
+bool ParticleWorld::isEmpty(int x, int y) const{
+    return inBounds(x, y) && particles[computeIndex(x, y)].get()->id == MaterialID::EmptyParticle;
 }

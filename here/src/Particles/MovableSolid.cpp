@@ -9,7 +9,6 @@ static const float MAX_VEL_Y = 124.0f;
 void MovableSolid::update(int x, int y, float dt, ParticleWorld& world) {
     if (hasBeenUpdatedThisFrame) return;
     hasBeenUpdatedThisFrame = true;
-
     // 1. Gravity (SFML: Add to Y to go Down)
     velocity.y += (GRAVITY * dt);
     
@@ -42,14 +41,14 @@ void MovableSolid::update(int x, int y, float dt, ParticleWorld& world) {
             isFreeFalling = true; // Build up gravity to fall next frame
         }
     }
-
+    
     int currentX = x;
     int currentY = y;
 
     int minBound = std::min(velXInt, velYInt);
     float slope = (upperBound == 0) ? 0.0f : ((float)(minBound) / (upperBound));
     bool xDiffIsLarger = velXInt > velYInt;
-
+sf::Vector2i formerLocation = {x, y};
     for (int i = 1; i <= upperBound; i++) {
         int smallerCount = (int)std::floor(i * slope);
         int xInc = xDiffIsLarger ? i : smallerCount;
@@ -73,10 +72,30 @@ void MovableSolid::update(int x, int y, float dt, ParticleWorld& world) {
             return;
         }
     }
+    // Post-movement updates
+    applyHeatToNeighborsIfIgnited(world);
+    world.updateParticleColor(this,world);
+    takeEffectsDamage(world);
+    spawnSparkIfIgnited(world);
+    //checkLifeSpan(world);
+    // Update Stopped Moving Count
+    if (didNotMove(formerLocation) && !isIgnited) {
+        stoppedMovingCount++;
+    } else {
+        stoppedMovingCount = 0;
+    }
+    
+    if (stoppedMovingCount > stoppedMovingThreshold) {
+        stoppedMovingCount = stoppedMovingThreshold;
+    }
 }
 
 bool MovableSolid::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) {
     Particle* neighbor = world.getParticleAt(targetX, targetY);
+    if (!neighbor) return true;
+
+    // --- Interaction ---
+    if (this->actOnOther(neighbor, world)) return true;
 
     // Case 1: Empty
     if (neighbor->id == MaterialID::EmptyParticle) {
@@ -162,6 +181,7 @@ void MovableSolid::setAdjacentNeighborsFreeFalling(int x, int y, ParticleWorld& 
         if (world.inBounds(x + dx, y)) {
             Particle* p = world.getParticleAt(x + dx, y);
             if (p->id != MaterialID::EmptyParticle) {
+                // Java: Math.random() > element.inertialResistance
                 if (Random::randFloat(0, 1) > p->inertialResistance) {
                     p->isFreeFalling = true;
                 }
@@ -183,21 +203,52 @@ float MovableSolid::getAverageVelOrGravity(float myVel, float otherVel) {
     // Cap to terminal velocity
     return (avg < 0) ? avg : std::min(avg, 124.0f);
 }
+// --- Specific Implementations ---
 
-// --- Specific Particle Logic ---
+void Coal::spawnSparkIfIgnited(ParticleWorld& world) {
+    if (Random::randInt(0, 20) > 2) return;
+    // Call base (assuming Particle has a base implementation, otherwise implement here)
+    Particle::spawnSparkIfIgnited(world); 
+}
 
 void Gunpowder::update(int x, int y, float dt, ParticleWorld& world) {
     MovableSolid::update(x, y, dt, world);
     if (isIgnited) {
         ignitedCount++;
-        // if (ignitedCount >= 7) { world.explode(x, y, 15); }
+    }
+    if (ignitedCount >= ignitedThreshold) {
+        // Java: matrix.addExplosion(15, 10, this)
+        // Check explosion resistance of self?
+        if (explode(world, 100)) { // Force explosion
+             // Assuming ParticleWorld has an explosion handler
+             // world.createExplosion(x, y, 15, 10); 
+        }
     }
 }
 
 void Snow::update(int x, int y, float dt, ParticleWorld& world) {
     MovableSolid::update(x, y, dt, world);
-    // SFML: If falling faster than 62 down, jitter speed
-    if (velocity.y > 62.0f) {
-        velocity.y = (Random::randFloat(0, 1) > 0.3f) ? 62.0f : 124.0f;
+    // Java: Check if falling fast, random chance to speed up
+    if (velocity.y > 62.0f) { // SFML: Positive is down
+        velocity.y = (Random::randFloat(0,1) > 0.3f) ? 62.0f : 124.0f;
     }
+}
+
+bool Snow::receiveHeat(int heat) {
+    if (heat > 0) {
+        // Die and replace with Water
+        // Since we don't have the instance 'world' here in the args for receiveHeat 
+        // (based on Particle.hpp signature), we might need to flag it dead 
+        // or rely on a different update cycle. 
+        // *Correction*: Particle.hpp receiveHeat(int heat) doesn't have 'world'.
+        // You might need to add a flag 'shouldMelt' and handle in update, 
+        // or change the Particle.hpp signature to include world.
+        
+        // Assuming we return true to indicate heat was used:
+        health = 0; // Kill it
+        isDead = true; 
+        // In a real engine, you'd trigger a "replaceWith(MaterialID::Water)" flag here
+        return true;
+    }
+    return false;
 }

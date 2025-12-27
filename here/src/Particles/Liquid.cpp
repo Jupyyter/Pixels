@@ -15,7 +15,7 @@ void Liquid::update(int x, int y, float dt, ParticleWorld& world)
 {
     if (hasBeenUpdatedThisFrame) return;
     hasBeenUpdatedThisFrame = true;
-
+    
     // --- 1. Gravity & Friction ---
     velocity.y += GRAVITY * dt;
     
@@ -60,14 +60,13 @@ void Liquid::update(int x, int y, float dt, ParticleWorld& world)
             velocity.x *= 0.5f;
         }
     }
-
     int currentX = x;
     int currentY = y;
     
     int minBound = std::min(absX, absY);
     float slope = (upperBound == 0) ? 0.0f : ((float)(minBound) / (upperBound));
     bool xDiffIsLarger = absX > absY;
-
+    sf::Vector2i formerLocation(x, y);
     for (int i = 1; i <= upperBound; i++) {
         int smallerCount = (int)std::floor(i * slope);
         int xIncrease, yIncrease;
@@ -97,12 +96,31 @@ void Liquid::update(int x, int y, float dt, ParticleWorld& world)
             return;
         }
     }
+    world.updateParticleColor(this,world);
+    applyHeatToNeighborsIfIgnited(world);
+    spawnSparkIfIgnited(world);
+    //checkLifeSpan(world);
+    takeEffectsDamage(world);
+    stoppedMovingCount = didNotMove(formerLocation) ? stoppedMovingCount + 1 : 0;
+        if (stoppedMovingCount > stoppedMovingThreshold) {
+            stoppedMovingCount = stoppedMovingThreshold;
+        }
 }
 
 bool Liquid::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, 
                            ParticleWorld& world, bool isFinal, bool isFirst, int depth) 
 {
     Particle* neighbor = world.getParticleAt(targetX, targetY);
+    if (!neighbor) return true; // Safety
+
+    // --- 0. Chemical/Elemental Interaction ---
+    // This matches Java: "boolean acted = actOnOther(neighbor, matrix);"
+    bool acted = this->actOnOther(neighbor, world);
+    if (acted) {
+        // If the interaction resulted in death or significant change, 
+        // we stop physical movement for this step.
+        return true; 
+    }
 
     // 1. Empty or Gas (Free Fall)
     if (neighbor->id == MaterialID::EmptyParticle) { 
@@ -223,7 +241,8 @@ bool Liquid::iterateToAdditional(ParticleWorld& world, int startX, int startY, i
         if (!world.inBounds(modifiedX, startY)) return true; 
 
         Particle* neighbor = world.getParticleAt(modifiedX, startY);
-        if (neighbor == nullptr) return true; 
+        bool acted = actOnOther(neighbor, world);
+        if (acted) return false; 
 
         bool isFinal = (i == absDist);
         bool isFirst = (i == 0);
@@ -278,7 +297,6 @@ int Liquid::getAdditional(float val) {
 }
 
 float Liquid::getAverageVelOrGravity(float myVel, float otherVel) {
-    // FIXED: Y-Down Logic
     // If neighbor is falling slower than terminal velocity (e.g. < 125),
     // set to Terminal Velocity (124).
     if (otherVel < (MAX_VEL_Y + 1.0f)) {
@@ -294,99 +312,3 @@ float Liquid::getAverageVelOrGravity(float myVel, float otherVel) {
     // Else clamp to Max Downward Velocity
     return std::min(avg, MAX_VEL_Y);
 }
-void Lava::update(int x, int y, float dt, ParticleWorld& world) {
-        if (hasBeenUpdatedThisFrame) return;
-        hasBeenUpdatedThisFrame = true;
-
-        // 1. Viscosity & Gravity (Slightly slower gravity than water: * 0.85f)
-        velocity.y = std::clamp(velocity.y + (GRAVITY * dt * 0.85f), -8.0f, 8.0f);
-        velocity.x *= 0.95f;
-
-        // 2. Interaction: Ignite neighbors
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                if (dx == 0 && dy == 0) continue;
-                int nx = x + dx, ny = y + dy;
-                
-                if (world.inBounds(nx, ny)) {
-                    Particle* neighbor = world.getParticleAt(nx, ny);
-                    // Check Flammable
-                    if ((neighbor->id == MaterialID::Wood || 
-                         neighbor->id == MaterialID::Oil || 
-                         neighbor->id == MaterialID::Gunpowder) && Random::chance(80)) {//create fire
-                    }
-                    // Check Water interaction
-                    else if (neighbor->id == MaterialID::Water && Random::chance(15)) {
-                        world.setParticleAt(nx, ny, std::make_unique<Steam>());
-                    }
-                }
-            }
-        }
-
-        // 3. Movement Logic (Specific to Lava)
-        
-        // Try move with velocity
-        int targetX = x + static_cast<int>(std::round(velocity.x));
-        int targetY = y + static_cast<int>(std::round(velocity.y));
-        
-        if (world.inBounds(targetX, targetY) && world.isEmpty(targetX, targetY)) {
-            world.swapParticles(x, y, targetX, targetY);
-            return;
-        }
-        
-        // Downward
-        if (world.inBounds(x, y + 1) && world.isEmpty(x, y + 1)) {
-            world.swapParticles(x, y, x, y + 1);
-            return;
-        }
-
-        // Diagonal
-        bool canFallLeft = world.inBounds(x - 1, y + 1) && world.isEmpty(x - 1, y + 1);
-        bool canFallRight = world.inBounds(x + 1, y + 1) && world.isEmpty(x + 1, y + 1);
-
-        if (canFallLeft && canFallRight) {
-            if (std::abs(velocity.x) > 0.1f) {
-                if (velocity.x < 0) world.swapParticles(x, y, x - 1, y + 1);
-                else world.swapParticles(x, y, x + 1, y + 1);
-            } else {
-                world.swapParticles(x, y, Random::randBool() ? x - 1 : x + 1, y + 1);
-            }
-            return;
-        }
-
-        if (canFallLeft) {
-            velocity.x = std::clamp(velocity.x - 0.8f, -4.0f, 4.0f);
-            world.swapParticles(x, y, x - 1, y + 1);
-            return;
-        }
-        if (canFallRight) {
-            velocity.x = std::clamp(velocity.x + 0.8f, -4.0f, 4.0f);
-            world.swapParticles(x, y, x + 1, y + 1);
-            return;
-        }
-
-        // Horizontal flow (slower than water)
-        bool canFlowLeft = world.inBounds(x - 1, y) && world.isEmpty(x - 1, y);
-        bool canFlowRight = world.inBounds(x + 1, y) && world.isEmpty(x + 1, y);
-
-        if (canFlowLeft || canFlowRight) {
-            velocity.x += Random::randFloat(-0.3f, 0.3f);
-            
-            if (canFlowLeft && (velocity.x < 0 || !canFlowRight)) {
-                if (Random::chance(5)) {
-                    world.swapParticles(x, y, x - 1, y);
-                    return;
-                }
-            }
-            if (canFlowRight && (velocity.x > 0 || !canFlowLeft)) {
-                if (Random::chance(5)) {
-                    world.swapParticles(x, y, x + 1, y);
-                    return;
-                }
-            }
-        }
-
-        // Damping
-        velocity.y *= 0.8f;
-        velocity.x *= 0.85f;
-    }

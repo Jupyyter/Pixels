@@ -76,14 +76,14 @@ obj/src/MaterialRegistry.o: src/MaterialRegistry.cpp \
  ../SFML-3.0.0/include/SFML/System/FileInputStream.hpp \
  ../SFML-3.0.0/include/SFML/System/InputStream.hpp \
  ../SFML-3.0.0/include/SFML/System/MemoryInputStream.hpp \
- ../SFML-3.0.0/include/SFML/System/Sleep.hpp \
- include/particles/MovableSolid.hpp include/particles/Solid.hpp \
- include/Random.hpp include/particles/Gas.hpp include/ParticleWorld.hpp \
- include/RigidBody.hpp ../2dbox/include/box2d/box2d.h \
- ../2dbox/include/box2d/base.h ../2dbox/include/box2d/collision.h \
+ ../SFML-3.0.0/include/SFML/System/Sleep.hpp include/Random.hpp \
+ include/ParticleWorld.hpp include/RigidBody.hpp \
+ ../2dbox/include/box2d/box2d.h ../2dbox/include/box2d/base.h \
+ ../2dbox/include/box2d/collision.h \
  ../2dbox/include/box2d/math_functions.h ../2dbox/include/box2d/id.h \
- ../2dbox/include/box2d/types.h include/particles/Liquid.hpp \
- include/particles/ImmovableSolid.hpp
+ ../2dbox/include/box2d/types.h include/particles/MovableSolid.hpp \
+ include/particles/Solid.hpp include/particles/Gas.hpp \
+ include/particles/Liquid.hpp include/particles/ImmovableSolid.hpp
 include/Constants.hpp:
 ../SFML-3.0.0/include/SFML/Graphics/Color.hpp:
 ../SFML-3.0.0/include/SFML/Graphics/Color.inl:
@@ -164,10 +164,7 @@ include/particles/Particle.hpp:
 ../SFML-3.0.0/include/SFML/System/InputStream.hpp:
 ../SFML-3.0.0/include/SFML/System/MemoryInputStream.hpp:
 ../SFML-3.0.0/include/SFML/System/Sleep.hpp:
-include/particles/MovableSolid.hpp:
-include/particles/Solid.hpp:
 include/Random.hpp:
-include/particles/Gas.hpp:
 include/ParticleWorld.hpp:
 include/RigidBody.hpp:
 ../2dbox/include/box2d/box2d.h:
@@ -176,5 +173,8 @@ include/RigidBody.hpp:
 ../2dbox/include/box2d/math_functions.h:
 ../2dbox/include/box2d/id.h:
 ../2dbox/include/box2d/types.h:
+include/particles/MovableSolid.hpp:
+include/particles/Solid.hpp:
+include/particles/Gas.hpp:
 include/particles/Liquid.hpp:
 include/particles/ImmovableSolid.hpp:

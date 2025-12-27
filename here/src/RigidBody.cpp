@@ -232,7 +232,7 @@ void RigidBodySystem::renderToParticleWorld(ParticleWorld *particleWorld)
             {
                 const Particle*currentParticle = particleWorld->getParticleAt(pixel.x, pixel.y);
                 // Only clear if it's still a rigid body particle (lifetime == -1.0f)
-                if (currentParticle->id == rbData->materialType && currentParticle->lifeTime == -1.0f)
+                if (currentParticle->id == rbData->materialType && currentParticle->lifeSpan == -1.0f)
                 {
                     particleWorld->setParticleAt(pixel.x, pixel.y, std::make_unique<EmptyParticle>());
                 }
@@ -269,7 +269,7 @@ void RigidBodySystem::renderToParticleWorld(ParticleWorld *particleWorld)
                         {
                             auto p = particleWorld->createParticleByType(rbData->materialType);
                             p->color = rbData->color;
-                            p->lifeTime = -1.0f; // Mark as rigid body particle
+                            p->lifeSpan = -1.0f; // Mark as rigid body particle
                             particleWorld->setParticleAt(x, y, std::move(p));
                             rbData->previousPixels.push_back(sf::Vector2i(x, y));
                         }
@@ -339,7 +339,7 @@ void RigidBodySystem::renderToParticleWorld(ParticleWorld *particleWorld)
                         if (p)
                         {
                             p->color = rbData->color;
-                            p->lifeTime = -1.0f;
+                            p->lifeSpan = -1.0f;
 
                             particleWorld->setParticleAt(x, y, std::move(p));
 

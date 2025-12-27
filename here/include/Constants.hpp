@@ -30,7 +30,6 @@ constexpr float MAX_SELECTION_RADIUS = 100.0f;
     X(Stone,         sf::Color(120, 110, 120)) \
     X(Wood,          sf::Color(60, 40, 20))    \
     X(Salt,          sf::Color(200, 180, 190)) \
-    X(Fire,          sf::Color(150, 20, 0))    \
     X(Smoke,         sf::Color(50, 50, 50))    \
     X(Steam,         sf::Color(220, 220, 250)) \
     X(Gunpowder,     sf::Color(60, 60, 60))    \
@@ -41,6 +40,12 @@ constexpr float MAX_SELECTION_RADIUS = 100.0f;
     X(Dirt,          sf::Color(182, 159, 102)) \
     X(Coal,          sf::Color(115, 116, 115)) \
     X(Ember,         sf::Color(200, 120, 20))  \
+    X(Cement,         sf::Color(165, 163, 145))  \
+    X(Blood,         sf::Color(136, 8, 8))  \
+    X(FlammableGas,         sf::Color(0, 255, 0))  \
+    X(Spark,         sf::Color(89, 35, 14))  \
+    X(ExplosionSpark,         sf::Color(255, 165, 0))  \
+    X(SlimeMold,         sf::Color(201, 58, 107))  \
     X(EmptyParticle, sf::Color(0, 0, 0))
 
 enum class MaterialGroup { MovableSolid, ImmovableSolid, Liquid, Gas, Special };

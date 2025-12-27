@@ -1,105 +1,216 @@
-#include "ParticleWorld.hpp"
+#include "Particles/Gas.hpp"
+#include "Particles/Liquid.hpp"
+#include "Particles/Solid.hpp"
 #include "Constants.hpp"
 #include "Random.hpp"
 #include <algorithm> 
 #include <cmath> 
-#include "Particles/Gas.hpp"
-#include "Particles/Liquid.hpp"
+
+Gas::Gas(MaterialID id, float buoy, float chaos) 
+    : Particle(id), buoyancy(buoy), chaosLevel(chaos) {
+    density = 1;
+    dispersionRate = 1;
+}
+
+// --- CORE MOVEMENT ---
 void Gas::update(int x, int y, float dt, ParticleWorld& world) 
 {
+    if (hasBeenUpdatedThisFrame) return;
+    hasBeenUpdatedThisFrame = true;
 
+    // 1. Calculate Velocity
     velocity.y = std::clamp(velocity.y - (GRAVITY * dt * buoyancy), -5.0f, 2.0f);
-
-    // Apply Chaos (Horizontal Drift)
+    
+    // Apply Chaos
     velocity.x += Random::randFloat(-chaosLevel, chaosLevel);
     velocity.x = std::clamp(velocity.x, -3.0f, 3.0f);
-
-    // Occasional Turbulence
+    
+    // Turbulence
     if (Random::chance(5)) {
         velocity.x += Random::randFloat(-1.0f, 1.0f);
         velocity.y += Random::randFloat(-0.5f, 0.5f);
     }
 
-    // Calculate Target
     int targetX = x + static_cast<int>(std::round(velocity.x));
     int targetY = y + static_cast<int>(std::round(velocity.y));
-
-    // Helper lambda to check if gas can move into a cell
-    // Gases can move into Empty, Water, or Oil (pass through liquids)
-    auto canMoveInto = [&](int tx, int ty) -> bool {
-        if (!world.inBounds(tx, ty)) return false;
-        Particle* p = world.getParticleAt(tx, ty);
-        return (p->id == MaterialID::EmptyParticle || 
-                p->id == MaterialID::Water || 
-                p->id == MaterialID::Oil);
+    
+    // Helper lambda using the new actOnNeighbor signature
+    auto tryMove = [&](int tx, int ty) -> bool {
+        // x and y are passed by reference as currentX and currentY
+        return actOnNeighbor(tx, ty, x, y, world, true, true, 0);
     };
 
+    // --- Original 5-Step Movement Logic ---
+
     // 1. Try Direct Movement
-    if (canMoveInto(targetX, targetY)) {
-        world.swapParticles(x, y, targetX, targetY);
-        return;
+    if (tryMove(targetX, targetY)) {
+        // Moved
     }
-
     // 2. Try Upward Movement
-    if (canMoveInto(x, y - 1)) {
-        world.swapParticles(x, y, x, y - 1);
-        return;
+    else if (tryMove(x, y - 1)) {
+        // Moved up
     }
-
     // 3. Try Horizontal Movement (Drift)
-    int direction = (velocity.x > 0) ? 1 : -1;
-    // Add randomness if velocity is low
-    if (std::abs(velocity.x) < 0.1f) direction = Random::randBool() ? 1 : -1;
+    else {
+        int direction = (velocity.x > 0) ? 1 : -1;
+        if (std::abs(velocity.x) < 0.1f) direction = Random::randBool() ? 1 : -1;
 
-    if (canMoveInto(x + direction, y)) {
-        velocity.x += direction * 0.5f;
-        world.swapParticles(x, y, x + direction, y);
-        return;
-    }
-    
-    // Try opposite if blocked
-    if (canMoveInto(x - direction, y)) {
-        velocity.x -= direction * 0.5f;
-        world.swapParticles(x, y, x - direction, y);
-        return;
-    }
-
-    // 4. Try Diagonal Upward
-    if (canMoveInto(x + 1, y - 1)) {
-         world.swapParticles(x, y, x + 1, y - 1);
-         return;
-    }
-    if (canMoveInto(x - 1, y - 1)) {
-         world.swapParticles(x, y, x - 1, y - 1);
-         return;
+        if (tryMove(x + direction, y)) {
+            velocity.x += direction * 0.5f;
+        } 
+        else if (tryMove(x - direction, y)) {
+            velocity.x -= direction * 0.5f;
+        }
+        // 4. Try Diagonal Upward
+        else if (tryMove(x + 1, y - 1)) {
+            // Moved diagonal right-up
+        }
+        else if (tryMove(x - 1, y - 1)) {
+            // Moved diagonal left-up
+        }
     }
 
     // 5. Friction
     velocity.x *= 0.8f;
     velocity.y *= 0.9f;
+
+    // --- Side Effects ---
+    applyHeatToNeighborsIfIgnited(world);
+    world.updateParticleColor(this,world);
+    spawnSparkIfIgnited(world);
+    checkLifeSpan(world);
+    takeEffectsDamage(world);
 }
 
-    void Steam::update(int x, int y, float dt, ParticleWorld& world) {
-        if (hasBeenUpdatedThisFrame) return;
-        hasBeenUpdatedThisFrame = true;
+// --- INTERACTION LOGIC ---
 
-        // 1. Lifetime & Fading
-        if (lifeTime > 12.0f) {
-            world.setParticleAt(x, y, std::make_unique<EmptyParticle>());
-            return;
+bool Gas::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) {
+    
+    if (!world.inBounds(targetX, targetY)) return false;
+    Particle* neighbor = world.getParticleAt(targetX, targetY);
+
+    // 1. actOnOther hook
+    bool acted = actOnOther(neighbor, world);
+    if (acted) return true;
+
+    MaterialGroup nGroup = neighbor->getGroup();
+    MaterialID nID = neighbor->id;
+
+    // Logic for Empty or Particle (pass-through)
+    if (nID == MaterialID::EmptyParticle) {
+        if (isFinal) {
+            world.swapParticles(currentX, currentY, targetX, targetY);
+            return true; 
+        } 
+        return false;
+    } 
+    // Logic for Gas (Density Check)
+    else if (nGroup == MaterialGroup::Gas) {
+        if (compareGasDensities(neighbor)) {
+            swapGasForDensities(world, neighbor, targetX, targetY, currentX, currentY);
+            return true; 
         }
-
-        // Fade alpha
-        float lifeFactor = std::clamp((12.0f - lifeTime) / 12.0f, 0.1f, 1.0f);
-        color.a = static_cast<uint8_t>(lifeFactor * 255 * 0.8f);
-
-        // 2. Condensation (Steam -> Water)
-        if (lifeTime > 8.0f && Random::chance(200)) {
-            world.setParticleAt(x, y, std::make_unique<Water>());
-            return;
-        }
-
-        // 3. Movement
-        // Uses the base Gas implementation which contains updateGasMovement logic
-        Gas::update(x, y, dt, world);
+        return false;
     }
+    // Logic for Liquid (Gases rise through liquids)
+    else if (nGroup == MaterialGroup::Liquid) {
+        world.swapParticles(currentX, currentY, targetX, targetY);
+        return true;
+    }
+    
+    return false;
+}
+
+// --- HELPERS ---
+
+bool Gas::compareGasDensities(Particle* neighbor) {
+    // Standard logic: Heavier gas sinks. 
+    return (density > neighbor->density && neighbor->position.y <= this->position.y);
+}
+
+void Gas::swapGasForDensities(ParticleWorld& world, Particle* neighbor, int neighborX, int neighborY, int& currentX, int& currentY) {
+    this->velocity.y = 2.0f; // Force push down
+    world.swapParticles(currentX, currentY, neighborX, neighborY);
+}
+
+// --- SPECIFIC CLASS IMPLEMENTATIONS ---
+
+// STEAM
+void Steam::checkLifeSpan(ParticleWorld& world) {
+    if (lifeSpan > 0) {
+        lifeSpan--;
+        if (lifeSpan <= 0) {
+            if (Random::randFloat(0, 1) > 0.5f) {
+                die(world);
+            } else {
+                dieAndReplace(MaterialID::Water, world);
+            }
+        }
+    }
+}
+
+// SPARK
+bool Spark::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) {
+    
+    if (!world.inBounds(targetX, targetY)) return false;
+    Particle* neighbor = world.getParticleAt(targetX, targetY);
+
+    bool acted = actOnOther(neighbor, world);
+    if (acted) return true;
+
+    MaterialID nID = neighbor->id;
+    MaterialGroup nGroup = neighbor->getGroup();
+
+    if (nID == MaterialID::EmptyParticle) {
+        if (isFinal) {
+            world.swapParticles(currentX, currentY, targetX, targetY);
+        }
+        return true; 
+    }
+    else if (nID == MaterialID::Spark) {
+        return false; 
+    }
+    else if (nID == MaterialID::Smoke) {
+        neighbor->die(world);
+        return false;
+    }
+    else if (nGroup == MaterialGroup::Liquid || nGroup == MaterialGroup::MovableSolid||nGroup == MaterialGroup::ImmovableSolid || nGroup == MaterialGroup::Gas) {
+        neighbor->receiveHeat(this->heatFactor);
+        this->die(world); 
+        return true; 
+    }
+    return false;
+}
+
+// EXPLOSION SPARK
+bool ExplosionSpark::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) {
+    
+    if (!world.inBounds(targetX, targetY)) return false;
+    Particle* neighbor = world.getParticleAt(targetX, targetY);
+
+    bool acted = actOnOther(neighbor, world);
+    if (acted) return true;
+
+    MaterialID nID = neighbor->id;
+    MaterialGroup nGroup = neighbor->getGroup();
+
+    if (nID == MaterialID::EmptyParticle) {
+        if (isFinal) {
+            world.swapParticles(currentX, currentY, targetX, targetY);
+        }
+        return true;
+    }
+    else if (nID == MaterialID::Spark) {
+        return false;
+    }
+    else if (nID == MaterialID::Smoke) {
+        neighbor->die(world);
+        return false;
+    }
+    else if (nGroup == MaterialGroup::Liquid || nGroup == MaterialGroup::MovableSolid||nGroup == MaterialGroup::ImmovableSolid || nGroup == MaterialGroup::Gas) {
+        neighbor->receiveHeat(this->heatFactor);
+        this->die(world);
+        return true;
+    }
+    return false;
+}
