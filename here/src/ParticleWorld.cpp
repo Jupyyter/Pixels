@@ -178,24 +178,39 @@ void ParticleWorld::updateParticleColor(Particle* particle, ParticleWorld& world
 
     bool visualChanged = false;
 
-    //Handle Ignition (Fire Effect)
     if (particle->isIgnited) 
     {
-        // Generate a random flicker value
-        int flicker = Random::randInt(-30, 30);
+        // 1. Slow down the flicker frequency
+        // Only change the color if a random check passes (e.g., 20% chance per frame)
+        // This makes the flicker "stick" long enough for the eye to register it.
+        if (Random::randInt(0, 100) < 20) 
+        {
+            // 2. Use a "Heat Level" system for high contrast
+            // We'll pick between three distinct states: Red-Hot, Orange-Fire, and Yellow-Flash
+            int roll = Random::randInt(0, 100);
+            
+            int r, g, b;
+            if (roll < 10) { 
+                // Rare "White/Yellow Hot" flash (Brightest)
+                r = 255; g = 255; b = 150; 
+            } else if (roll < 60) {
+                // Standard "Orange" flame
+                r = 255; g = Random::randInt(120, 180); b = 20;
+            } else {
+                // Deep "Red" embers (Darkest)
+                r = Random::randInt(180, 220); g = 40; b = 10;
+            }
 
-        // Calculate a "Hot" version of the default color
-        // Logic: Maximize Red, reduce Blue, fluctuate Green for orange/yellow tints
-        int r = std::min(255, particle->defaultColor.r + 100);
-        int g = std::clamp(particle->defaultColor.g + flicker - 20, 0, 255);
-        int b = std::max(0, particle->defaultColor.b - 50);
-
-        particle->color = sf::Color(r, g, b, 255);
-        visualChanged = true;
+            particle->color = sf::Color(r, g, b, 255);
+            visualChanged = true;
+        }
     }
-    else if(particle->didColorChange ){
-        particle->didColorChange=false;
-        visualChanged=true;
+    else if (particle->didColorChange) 
+    {
+        // Revert to original color when fire goes out
+        particle->color = particle->defaultColor;
+        particle->didColorChange = false;
+        visualChanged = true;
     }
 
     if (visualChanged) 

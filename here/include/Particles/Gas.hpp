@@ -23,7 +23,7 @@ public:
     void swapGasForDensities(ParticleWorld& world, Particle* neighbor, int neighborX, int neighborY, int& currentX, int& currentY);
     
     // Default overrides
-    void spawnSparkIfIgnited(ParticleWorld& world) override {}
+    //void spawnSparkIfIgnited(ParticleWorld& world) override {}
     bool corrode(ParticleWorld& world) override { return false; }
 };
 
@@ -71,6 +71,7 @@ public:
 
     bool actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) override;
     bool receiveHeat(int heat) override { return false; }
+    void spawnSparkIfIgnited(ParticleWorld& world) override {};
 };
 
 class ExplosionSpark : public Gas {
@@ -88,7 +89,7 @@ public:
 
     bool actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) override;
     bool receiveHeat(int heat) override { return false; }
-    void modifyColor() {} 
+    void spawnSparkIfIgnited(ParticleWorld& world) override{};
 };
 
 class Smoke : public Gas {

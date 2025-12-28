@@ -1,6 +1,7 @@
 #include "Particles/Particle.hpp"
 #include "ParticleWorld.hpp"
 #include "Random.hpp"
+
 void Particle::die(ParticleWorld& world) {
     this->isDead = true;
     

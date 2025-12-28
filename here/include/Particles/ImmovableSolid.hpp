@@ -1,37 +1,95 @@
 #include "Solid.hpp"
 #pragma once
-class ImmovableSolid : public Solid {
+class ImmovableSolid : public Solid
+{
 public:
-    ImmovableSolid(MaterialID id) : Solid(id) {this->isFreeFalling = false;}
+    ImmovableSolid(MaterialID id) : Solid(id) { this->isFreeFalling = false; }
     static MaterialGroup getStaticGroup() { return MaterialGroup::ImmovableSolid; }
-    MaterialGroup getGroup() const override { 
-        return getStaticGroup(); 
+    MaterialGroup getGroup() const override
+    {
+        return getStaticGroup();
     }
     // Even static particles get an update as requested
-    void update(int x, int y, float dt, ParticleWorld& world) override {
-        world.updateParticleColor(this,world);
+    void update(int x, int y, float dt, ParticleWorld &world) override
+    {
+        world.updateParticleColor(this, world);
+        applyHeatToNeighborsIfIgnited(world);
+        takeEffectsDamage(world);
+        spawnSparkIfIgnited(world);
+        // customElementFunctions(world);
     }
 };
-class Stone : public ImmovableSolid {
+class Stone : public ImmovableSolid
+{
 public:
-    Stone() : ImmovableSolid(MaterialID::Stone) {
-        // Color randomization logic
+    Stone() : ImmovableSolid(MaterialID::Stone)
+    {
+        frictionFactor = 0.5f;
+        inertialResistance = 1.1f;
+        mass = 500;
+        explosionResistance = 4;
     }
+    bool receiveHeat(int heat) override {
+        return false; 
+    }
+
     std::unique_ptr<Particle> clone() const override { return std::make_unique<Stone>(*this); }
 };
-class SlimeMold : public ImmovableSolid {
+class Brick : public ImmovableSolid
+{
 public:
-    SlimeMold() : ImmovableSolid(MaterialID::SlimeMold) {
-        // Color randomization logic
+    Brick() : ImmovableSolid(MaterialID::Brick)
+    {
+        frictionFactor = 0.5f;
+        inertialResistance = 1.1f;
+        mass = 500;
+        explosionResistance = 4;
+    }
+    bool receiveHeat(int heat) override {
+        return false; 
+    }
+
+    std::unique_ptr<Particle> clone() const override { return std::make_unique<Brick>(*this); }
+};
+class SlimeMold : public ImmovableSolid
+{
+public:
+    SlimeMold() : ImmovableSolid(MaterialID::SlimeMold)
+    {
+        frictionFactor = 0.5f;
+        inertialResistance = 1.1f;
+        mass = 500;
+        flammabilityResistance = 10;
+        resetFlammabilityResistance = 0;
+        health = 40;
     }
     std::unique_ptr<Particle> clone() const override { return std::make_unique<SlimeMold>(*this); }
 };
-class Wood : public ImmovableSolid {
+class Wood : public ImmovableSolid
+{
 public:
-    Wood() : ImmovableSolid(MaterialID::Wood) { /* Color logic */ }
+    Wood() : ImmovableSolid(MaterialID::Wood) { 
+        frictionFactor = 0.5f;
+        inertialResistance = 1.1f;
+        mass = 500;
+        health = (std::rand() % 100) + 100;
+        flammabilityResistance = 40;
+        resetFlammabilityResistance = 25; 
+    }
     std::unique_ptr<Particle> clone() const override { return std::make_unique<Wood>(*this); }
-    
-    // Wood is static, but creates interactions
-    // Note: Usually fire checks for wood, but if wood needs to do something:
-    // override update here.
+
+    void checkIfDead(ParticleWorld &world) override
+    {
+        if (health <= 0)
+        {
+            if (isIgnited && (static_cast<float>(std::rand()) / RAND_MAX) > 0.95f)
+            {
+                dieAndReplace(MaterialID::Ember, world);
+            }
+            else
+            {
+                die(world);
+            }
+        }
+    }
 };

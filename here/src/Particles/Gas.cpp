@@ -15,6 +15,7 @@ Gas::Gas(MaterialID id, float buoy, float chaos)
 // --- CORE MOVEMENT ---
 void Gas::update(int x, int y, float dt, ParticleWorld& world) 
 {
+    world.updateParticleColor(this,world);
     if (hasBeenUpdatedThisFrame) return;
     hasBeenUpdatedThisFrame = true;
 
@@ -76,7 +77,6 @@ void Gas::update(int x, int y, float dt, ParticleWorld& world)
 
     // --- Side Effects ---
     applyHeatToNeighborsIfIgnited(world);
-    world.updateParticleColor(this,world);
     spawnSparkIfIgnited(world);
     checkLifeSpan(world);
     takeEffectsDamage(world);
@@ -167,7 +167,7 @@ bool Spark::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY
         }
         return true; 
     }
-    else if (nID == MaterialID::Spark) {
+    else if (nID == MaterialID::Spark||nID==MaterialID::ExplosionSpark) {
         return false; 
     }
     else if (nID == MaterialID::Smoke) {
@@ -200,7 +200,7 @@ bool ExplosionSpark::actOnNeighbor(int targetX, int targetY, int& currentX, int&
         }
         return true;
     }
-    else if (nID == MaterialID::Spark) {
+    else if (nID == MaterialID::Spark||nID==MaterialID::ExplosionSpark) {
         return false;
     }
     else if (nID == MaterialID::Smoke) {

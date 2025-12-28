@@ -46,6 +46,7 @@ constexpr float MAX_SELECTION_RADIUS = 100.0f;
     X(Spark,         sf::Color(89, 35, 14))  \
     X(ExplosionSpark,         sf::Color(255, 165, 0))  \
     X(SlimeMold,         sf::Color(201, 58, 107))  \
+    X(Brick,         sf::Color(188, 3, 0))  \
     X(EmptyParticle, sf::Color(0, 0, 0))
 
 enum class MaterialGroup { MovableSolid, ImmovableSolid, Liquid, Gas, Special };
