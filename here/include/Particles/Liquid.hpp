@@ -189,7 +189,6 @@ public:
     std::unique_ptr<Particle> clone() const override { return std::make_unique<Acid>(*this); }
 
     bool actOnOther(Particle* other, ParticleWorld& world) override {
-        if (other->id == MaterialID::EmptyParticle) return false;
         
         // Visual stain
         other->stain(sf::Color(0, 255, 0, 100)); // Greenish stain

@@ -170,14 +170,7 @@ public:
         this->discolored = true;
         this->didColorChange = true;
         return true;
-    }
-    
-    virtual bool stain(float r, float g, float b, float a) {
-        if (Random::randFloat(0, 1) > 0.2f || isIgnited) return false;
-        // Blend logic would go here
-        this->discolored = true;
-        this->didColorChange = true;
-        return true;
+        
     }
 
     virtual bool cleanColor() {

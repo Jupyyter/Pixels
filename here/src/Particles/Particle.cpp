@@ -11,7 +11,7 @@ void Particle::die(ParticleWorld& world) {
     int myX = this->position.x;
     int myY = this->position.y;
 
-    world.setParticleAt(myX, myY, std::make_unique<EmptyParticle>());
+    world.setParticleAt(myX, myY, nullptr);
 }
 bool Particle::applyHeatToNeighborsIfIgnited(ParticleWorld& world) {
         // Java: if (!isEffectsFrame() || !shouldApplyHeat()) return false;
@@ -35,33 +35,35 @@ bool Particle::applyHeatToNeighborsIfIgnited(ParticleWorld& world) {
         return true;
     }
     void Particle::spawnSparkIfIgnited(ParticleWorld& world) {
-        // Java: if (!isEffectsFrame() || !isIgnited) return;
-        if (!isIgnited) return;
+    if (!isIgnited) return;
 
-        // Java uses y + 1 for "UpNeighbor", implying Y-Up coordinates.
-        // SFML uses Y-Down, so "Up" is y - 1.
-        int upX = position.x;
-        int upY = position.y - 1;
+    // SFML uses Y-Down, so "Up" is y - 1.
+    int upX = position.x;
+    int upY = position.y - 1;
 
-        if (world.inBounds(upX, upY)) {
-            Particle* upNeighbor = world.getParticleAt(upX, upY);
+    // 1. Check bounds first
+    if (world.inBounds(upX, upY)) {
+        
+        // 2. Check if the spot is empty (NULL)
+        // We use the new isEmpty check which simply looks for nullptr
+        if (world.isEmpty(upX, upY)) {
             
-            // Java: if (upNeighbor instanceof EmptyCell)
-            // In C++, we check if the neighbor is the specific Empty type
-            bool isEmpty = (upNeighbor != nullptr && upNeighbor->id == MaterialID::EmptyParticle);
+            // 3. Determine what to spawn
+            MaterialID elementToSpawn = (Random::randFloat(0.0f, 1.0f) > 0.1f) 
+                                        ? MaterialID::Spark 
+                                        : MaterialID::Smoke;
 
-            if (isEmpty) {
-                // Java: Math.random() > .1 ? SPARK : SMOKE
-                MaterialID elementToSpawn = (Random::randFloat(0.0f, 1.0f) > 0.1f) 
-                                            ? MaterialID::Spark 
-                                            : MaterialID::Smoke;
+            // 4. Create the new particle using the factory
+            auto newParticle = world.createParticleByType(elementToSpawn);
 
-                // Java: matrix.spawnElementByMatrix(...)
-                // We use the neighbor's dieAndReplace to swap the empty cell with the new particle
-                upNeighbor->dieAndReplace(elementToSpawn, world);
+            // 5. Place it in the world
+            if (newParticle) {
+                // This will update the pointer grid AND the pixel buffer
+                world.setParticleAt(upX, upY, std::move(newParticle));
             }
         }
     }
+}
 void Particle::dieAndReplace(MaterialID newType, ParticleWorld& world) {
     this->isDead = true;
     

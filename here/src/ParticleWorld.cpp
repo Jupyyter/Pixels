@@ -4,173 +4,239 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
-#include <memory> // Required for std::unique_ptr
 #include "RigidBody.hpp"
-#include "Particles/Liquid.hpp"
-#include "Particles/Gas.hpp"
-#include "Particles/MovableSolid.hpp"
-#include "Particles/ImmovableSolid.hpp"
+#include <cstring>
 ParticleWorld::~ParticleWorld() = default;
-ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string &worldFile)
-    : width(w), height(h), frameCounter(0)
-{
+// A unique 4-byte header to identify your save files
+const char MAGIC_HEADER[4] = {'S', 'A', 'N', 'D'};
+ParticleWorld::ParticleWorld(unsigned int w, unsigned int h, const std::string& worldFile)
+    : width(w), height(h), frameCounter(0) {
     particles.resize(width * height);
-    pixelBuffer.resize(width * height * 4); // RGBA
-    
+    pixelBuffer.resize(width * height * 4);
     rigidBodySystem = std::make_unique<RigidBodySystem>(width, height);
 
-    if (!worldFile.empty() && std::filesystem::exists(worldFile))
-    {
-        if (!loadWorld(worldFile))
-        {
-            std::cerr << "Failed to load world file, starting with empty world" << std::endl;
-            clear();
-        }
-    }
-    else
-    {
+    if (!worldFile.empty() && std::filesystem::exists(worldFile)) {
+        loadWorld(worldFile); // loadWorld calls clear() internally if it fails
+    } else {
         clear();
     }
 }
 
-
-void ParticleWorld::clear()
-{
-    for (auto &p : particles)
-    {
-        p = std::make_unique<EmptyParticle>();
+void ParticleWorld::clear() {
+    for (auto& p : particles) {
+        p.reset(); // Clear all unique_ptrs (set to nullptr)
     }
-    std::fill(pixelBuffer.begin(), pixelBuffer.end(), 0);
-    
-    // Clear rigid bodies
-    if (rigidBodySystem)
-    {
-        rigidBodySystem->clear();
-    }
+    std::fill(pixelBuffer.begin(), pixelBuffer.end(), 0); // Black/Transparent screen
+    if (rigidBodySystem) rigidBodySystem->clear();
 }
-
-void ParticleWorld::setParticleAt(int x, int y, std::unique_ptr<Particle> particle)
-{
-    if (!inBounds(x, y) || !particle) // Added null check for safety
-        return;
+void ParticleWorld::setParticleAt(int x, int y, std::unique_ptr<Particle> particle) {
+    if (!inBounds(x, y)) return;
 
     int idx = computeIndex(x, y);
+    int pIdx = idx * 4;
 
-    // 1. Update pixel buffer first
-    int pixelIdx = idx * 4;
-    pixelBuffer[pixelIdx]     = particle->color.r;
-    pixelBuffer[pixelIdx + 1] = particle->color.g;
-    pixelBuffer[pixelIdx + 2] = particle->color.b;
-    pixelBuffer[pixelIdx + 3] = particle->color.a;
-
-    particle->position = sf::Vector2i(x, y); 
-    // 2. Move the unique_ptr into the storage vector
-    // This transfers ownership. The 'particle' argument becomes null after this line.
-    particles[idx] = std::move(particle);
+    if (particle) {
+        pixelBuffer[pIdx]     = particle->color.r;
+        pixelBuffer[pIdx + 1] = particle->color.g;
+        pixelBuffer[pIdx + 2] = particle->color.b;
+        pixelBuffer[pIdx + 3] = particle->color.a;
+        
+        particle->position = sf::Vector2i(x, y);
+        particles[idx] = std::move(particle);
+    } else {
+        // Clearing a particle spot
+        pixelBuffer[pIdx] = 0; pixelBuffer[pIdx+1] = 0; 
+        pixelBuffer[pIdx+2] = 0; pixelBuffer[pIdx+3] = 0;
+        particles[idx].reset();
+    }
 }
 
+
+void ParticleWorld::moveParticle(int oldX, int oldY, int newX, int newY) {
+    if (!inBounds(oldX, oldY) || !inBounds(newX, newY)) return;
+    if (oldX == newX && oldY == newY) return;
+
+    int oldIdx = computeIndex(oldX, oldY);
+    int newIdx = computeIndex(newX, newY);
+
+    if (!particles[oldIdx]) return; // Source is empty
+
+    // Move the unique_ptr ownership
+    particles[newIdx] = std::move(particles[oldIdx]);
+    particles[newIdx]->position = sf::Vector2i(newX, newY);
+
+    // Update the visual pixel buffer
+    int pOld = oldIdx * 4;
+    int pNew = newIdx * 4;
+    for (int i = 0; i < 4; ++i) {
+        pixelBuffer[pNew + i] = pixelBuffer[pOld + i];
+        pixelBuffer[pOld + i] = 0; 
+    }
+}
 void ParticleWorld::swapParticles(int x1, int y1, int x2, int y2) {
     if (!inBounds(x1, y1) || !inBounds(x2, y2)) return;
 
     int idx1 = computeIndex(x1, y1);
     int idx2 = computeIndex(x2, y2);
 
-    // 1. Swap the pointers in the physics grid
+    // 1. Swap the unique_ptrs
     std::swap(particles[idx1], particles[idx2]);
 
-if (particles[idx1]) particles[idx1]->position = sf::Vector2i(x1, y1);
+    // 2. Update positions for whichever particles exist after swap
+    if (particles[idx1]) particles[idx1]->position = sf::Vector2i(x1, y1);
     if (particles[idx2]) particles[idx2]->position = sf::Vector2i(x2, y2);
 
-    // 2. Swap the colors in the pixel buffer (so the screen looks right)
+    // 3. Swap the pixel colors
     int pIdx1 = idx1 * 4;
     int pIdx2 = idx2 * 4;
-
     for (int i = 0; i < 4; i++) {
         std::swap(pixelBuffer[pIdx1 + i], pixelBuffer[pIdx2 + i]);
     }
 }
-void ParticleWorld::updatePixelColor(int x, int y, const sf::Color& color)
-{
+void ParticleWorld::updatePixelColor(int x, int y, const sf::Color& color) {
     if (!inBounds(x, y)) return;
-
     int idx = computeIndex(x, y) * 4;
     pixelBuffer[idx]     = color.r;
     pixelBuffer[idx + 1] = color.g;
     pixelBuffer[idx + 2] = color.b;
     pixelBuffer[idx + 3] = color.a;
 }
-void ParticleWorld::addRigidBody(int centerX, int centerY, float size, RigidBodyShape shape, MaterialID materialType)
-{
-    if (!rigidBodySystem) return;
-    
-    // Create rigid body based on shape
-    switch (shape)
-    {
-        case RigidBodyShape::Circle:
-            rigidBodySystem->createCircle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
-            break;
-            
-        case RigidBodyShape::Square:
-            rigidBodySystem->createSquare(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
-            break;
-            
-        case RigidBodyShape::Triangle:
-            rigidBodySystem->createTriangle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
-            break;
-    }
-}
-void ParticleWorld::update(float deltaTime)
-{
-    frameCounter++;
-    // Alternating scan direction to prevent bias
-    bool frameCounterEven = (frameCounter % 2) == 0;
-    int ran = frameCounterEven ? 0 : 1;
 
-    // Update rigid body physics first
-    if (rigidBodySystem)
-    {
+void ParticleWorld::update(float deltaTime) {
+    frameCounter++;
+    bool dir = (frameCounter % 2) == 0;
+
+    if (rigidBodySystem) {
         rigidBodySystem->update(deltaTime);
         rigidBodySystem->renderToParticleWorld(this);
     }
 
-    // Process particles from bottom to top to prevent double updates (falling logic)
-    for (int y = height - 1; y >= 0; --y)
-    {
-        // Alternating Left-to-Right / Right-to-Left loop
-        for (int x = ran ? 0 : width - 1; ran ? x < width : x >= 0; ran ? ++x : --x)
-        {
-            // ASSUMPTION: getParticleAt now returns a pointer (Particle*)
-            Particle* particle = getParticleAt(x, y);
-
-            // Safety check: if you use nullptr for empty space
-            if (!particle) 
-                continue;
-
-            // Logic check: skip empty particles
-            if (particle->id == MaterialID::EmptyParticle)
-                continue;
-
-            // Optimization: Skip if already updated (e.g., moved into this slot this frame)
-            if (particle->hasBeenUpdatedThisFrame)
-                continue;
-
-            // Skip updating rigid body particles (marked with lifetime -1.0f)
-            if (particle->lifeSpan == -1.0f)
-                continue;
-
-            // Update particle lifetime
-            particle->lifeSpan += deltaTime;
-            particle->update(x, y, deltaTime, *this);
+    for (int y = height - 1; y >= 0; --y) {
+        for (int x = dir ? 0 : width - 1; dir ? x < width : x >= 0; dir ? ++x : --x) {
+            Particle* p = getParticleAt(x, y);
+            if (!p || p->hasBeenUpdatedThisFrame || p->lifeSpan == -1.0f) continue;
+            
+            p->lifeSpan += deltaTime;
+            p->update(x, y, deltaTime, *this);
         }
     }
 
-    for (auto &p : particles)
-    {
-        if (p) // Check if pointer is valid
-        {
-            p->hasBeenUpdatedThisFrame = false;
+    for (auto& p : particles) {
+        if (p) p->hasBeenUpdatedThisFrame = false;
+    }
+}
+
+void ParticleWorld::addParticleCircle(int centerX, int centerY, float radius, MaterialID materialType) {
+    for (int dy = -radius; dy <= radius; ++dy) {
+        for (int dx = -radius; dx <= radius; ++dx) {
+            int x = centerX + dx, y = centerY + dy;
+            if (inBounds(x, y) && isEmpty(x, y)) {
+                if (std::sqrt(dx*dx + dy*dy) <= radius) {
+                    auto p = createParticleByType(materialType);
+                    if (p) {
+                        p->velocity = { Random::randFloat(-0.5f, 0.5f), Random::randFloat(-0.5f, 0.5f) };
+                        setParticleAt(x, y, std::move(p));
+                    }
+                }
+            }
         }
     }
+}
+
+void ParticleWorld::eraseCircle(int centerX, int centerY, float radius) {
+    for (int dy = -radius; dy <= radius; ++dy) {
+        for (int dx = -radius; dx <= radius; ++dx) {
+            if (std::sqrt(dx*dx + dy*dy) <= radius) {
+                setParticleAt(centerX + dx, centerY + dy, nullptr);
+            }
+        }
+    }
+}
+
+bool ParticleWorld::saveWorld(const std::string& baseFilename) {
+    std::string filename = getNextAvailableFilename("worlds/" + baseFilename);
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) return false;
+
+    // Write Magic Number
+    file.write(MAGIC_HEADER, 4);
+    file.write(reinterpret_cast<const char*>(&width), sizeof(width));
+    file.write(reinterpret_cast<const char*>(&height), sizeof(height));
+
+    for (int i = 0; i < width * height; ++i) {
+        Particle* p = particles[i].get();
+        MaterialID id = p ? p->id : MaterialID::EmptyParticle;
+        file.write(reinterpret_cast<const char*>(&id), sizeof(id));
+        if (p) {
+            file.write(reinterpret_cast<const char*>(&p->velocity), sizeof(sf::Vector2f));
+            file.write(reinterpret_cast<const char*>(&p->lifeSpan), sizeof(p->lifeSpan));
+            file.write(reinterpret_cast<const char*>(&p->color), sizeof(sf::Color));
+        } else {
+            // Padding to maintain binary structure
+            sf::Vector2f zero(0,0); float fzero = 0; sf::Color czero(0,0,0,0);
+            file.write(reinterpret_cast<const char*>(&zero), sizeof(sf::Vector2f));
+            file.write(reinterpret_cast<const char*>(&fzero), sizeof(float));
+            file.write(reinterpret_cast<const char*>(&czero), sizeof(sf::Color));
+        }
+    }
+    return true;
+}
+
+bool ParticleWorld::loadWorld(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) return false;
+
+    // 1. Check Magic Header
+    char header[4];
+    file.read(header, 4);
+    if (std::memcmp(header, MAGIC_HEADER, 4) != 0) {
+        std::cerr << "Error: File is not a valid SandWorld save (Magic Header mismatch).\n";
+        return false; 
+    }
+
+    // 2. Check Dimensions
+    int fW, fH;
+    file.read(reinterpret_cast<char*>(&fW), sizeof(fW));
+    file.read(reinterpret_cast<char*>(&fH), sizeof(fH));
+    if (file.fail() || fW != width || fH != height) {
+        std::cerr << "Error: Dimension mismatch or corrupted header.\n";
+        return false;
+    }
+
+    file.read(reinterpret_cast<char*>(&frameCounter), sizeof(frameCounter));
+
+    // 3. Robust Particle Loading
+    // Size of data per particle: ID (int) + Velocity (2f) + Lifespan (f) + Color (4b)
+    const size_t dataSizePerParticle = sizeof(sf::Vector2f) + sizeof(float) + sizeof(sf::Color);
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            MaterialID id;
+            file.read(reinterpret_cast<char*>(&id), sizeof(id));
+
+            if (file.eof() || file.fail()) break;
+
+            if (id == MaterialID::EmptyParticle) {
+                // If it's an empty particle in the file, we skip the data bytes
+                file.seekg(dataSizePerParticle, std::ios::cur);
+                setParticleAt(x, y, nullptr);
+            } else {
+                auto p = createParticleByType(id);
+                if (p) {
+                    file.read(reinterpret_cast<char*>(&p->velocity), sizeof(sf::Vector2f));
+                    file.read(reinterpret_cast<char*>(&p->lifeSpan), sizeof(p->lifeSpan));
+                    file.read(reinterpret_cast<char*>(&p->color), sizeof(sf::Color));
+                    setParticleAt(x, y, std::move(p));
+                } else {
+                    // Unknown ID (corrupted data in a renamed text file)
+                    // Skip the bytes for this "ghost" particle
+                    file.seekg(dataSizePerParticle, std::ios::cur);
+                    setParticleAt(x, y, nullptr);
+                }
+            }
+        }
+    }
+    return true;
 }
 void ParticleWorld::updateParticleColor(Particle* particle, ParticleWorld& world) 
 {
@@ -207,8 +273,9 @@ void ParticleWorld::updateParticleColor(Particle* particle, ParticleWorld& world
     }
     else if (particle->didColorChange) 
     {
-        // Revert to original color when fire goes out
-        particle->color = particle->defaultColor;
+        if(!particle->discolored){
+            particle->color = particle->defaultColor;
+        }
         particle->didColorChange = false;
         visualChanged = true;
     }
@@ -218,66 +285,26 @@ void ParticleWorld::updateParticleColor(Particle* particle, ParticleWorld& world
         world.updatePixelColor(particle->position.x, particle->position.y, particle->color);
     }
 }
-void ParticleWorld::addParticleCircle(int centerX, int centerY, float radius, MaterialID materialType)
+void ParticleWorld::addRigidBody(int centerX, int centerY, float size, RigidBodyShape shape, MaterialID materialType)
 {
-    // Place particles in circular area around center point
-    for (int dy = -static_cast<int>(radius); dy <= static_cast<int>(radius); ++dy)
+    if (!rigidBodySystem) return;
+    
+    // Create rigid body based on shape
+    switch (shape)
     {
-        for (int dx = -static_cast<int>(radius); dx <= static_cast<int>(radius); ++dx)
-        {
-            int x = centerX + dx;
-            int y = centerY + dy;
-
-            // Check distance from center
-            float distance = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+        case RigidBodyShape::Circle:
+            rigidBodySystem->createCircle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
             
-            if (distance <= radius)
-            {
-                // Only place particle if cell is empty and within world bounds
-                if (inBounds(x, y) && isEmpty(x, y))
-                {
-                    // 1. Create the specific particle class (Sand, Water, etc.)
-                    auto p = createParticleByType(materialType);
-
-                    // 2. Check if creation succeeded (returns nullptr if Empty/Invalid)
-                    if (p) 
-                    {
-                        p->velocity = {
-                            Random::randFloat(-0.5f, 0.5f), 
-                            Random::randFloat(-0.5f, 0.5f)
-                        };
-
-                        // 4. Move ownership of the pointer into the grid
-                        setParticleAt(x, y, std::move(p));
-                    }
-                }
-            }
-        }
+        case RigidBodyShape::Square:
+            rigidBodySystem->createSquare(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
+            
+        case RigidBodyShape::Triangle:
+            rigidBodySystem->createTriangle(static_cast<float>(centerX), static_cast<float>(centerY), size, materialType);
+            break;
     }
 }
-
-void ParticleWorld::eraseCircle(int centerX, int centerY, float radius)
-{
-    // Remove particles in circular area
-    for (int i = -radius; i < radius; ++i)
-    {
-        for (int j = -radius; j < radius; ++j)
-        {
-            int x = centerX + j;
-            int y = centerY + i;
-
-            if (inBounds(x, y))
-            {
-                float distance = std::sqrt(i * i + j * j);
-                if (distance <= radius)
-                {
-                    setParticleAt(x, y, std::make_unique<EmptyParticle>());
-                }
-            }
-        }
-    }
-}
-
 std::string ParticleWorld::getNextAvailableFilename(const std::string& baseName) 
 {
     std::string filename;
@@ -290,150 +317,10 @@ std::string ParticleWorld::getNextAvailableFilename(const std::string& baseName)
     
     return filename;
 }
-
-bool ParticleWorld::saveWorld(const std::string& baseFilename) 
-{
-    std::string filename = getNextAvailableFilename("worlds/" + baseFilename);
-    
-    std::ofstream file(filename, std::ios::binary);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file for writing: " << filename << std::endl;
-        return false;
-    }
-    
-    try {
-        // Write header: dimensions and frame counter
-        file.write(reinterpret_cast<const char*>(&width), sizeof(width));
-        file.write(reinterpret_cast<const char*>(&height), sizeof(height));
-        file.write(reinterpret_cast<const char*>(&frameCounter), sizeof(frameCounter));
-        
-        // Write all particle data sequentially
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                // Get pointer to particle (const version)
-                const Particle* p = getParticleAt(x, y);
-                
-                // CRITICAL SAFETY: 
-                // Even if you have EmptyParticle, if the grid wasn't fully initialized 
-                // getParticleAt might return nullptr. We handle that gracefully.
-                if (p) 
-                {
-                    file.write(reinterpret_cast<const char*>(&p->id), sizeof(p->id));
-                    file.write(reinterpret_cast<const char*>(&p->velocity.x), sizeof(p->velocity.x));
-                    file.write(reinterpret_cast<const char*>(&p->velocity.y), sizeof(p->velocity.y));
-                    file.write(reinterpret_cast<const char*>(&p->lifeSpan), sizeof(p->lifeSpan));
-                    file.write(reinterpret_cast<const char*>(&p->color.r), sizeof(p->color.r));
-                    file.write(reinterpret_cast<const char*>(&p->color.g), sizeof(p->color.g));
-                    file.write(reinterpret_cast<const char*>(&p->color.b), sizeof(p->color.b));
-                    file.write(reinterpret_cast<const char*>(&p->color.a), sizeof(p->color.a));
-                }
-                else 
-                {
-                    // If nullptr, write as Empty (fallback)
-                    MaterialID emptyId = MaterialID::EmptyParticle;
-                    float zero = 0.0f;
-                    uint8_t zeroByte = 0;
-                    
-                    file.write(reinterpret_cast<const char*>(&emptyId), sizeof(emptyId));
-                    file.write(reinterpret_cast<const char*>(&zero), sizeof(zero)); // vel x
-                    file.write(reinterpret_cast<const char*>(&zero), sizeof(zero)); // vel y
-                    file.write(reinterpret_cast<const char*>(&zero), sizeof(zero)); // lifetime
-                    file.write(reinterpret_cast<const char*>(&zeroByte), sizeof(zeroByte)); // r
-                    file.write(reinterpret_cast<const char*>(&zeroByte), sizeof(zeroByte)); // g
-                    file.write(reinterpret_cast<const char*>(&zeroByte), sizeof(zeroByte)); // b
-                    file.write(reinterpret_cast<const char*>(&zeroByte), sizeof(zeroByte)); // a
-                }
-            }
-        }
-        
-        file.close();
-        std::cout << "World saved successfully as: " << filename << std::endl;
-        return true;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error saving world: " << e.what() << std::endl;
-        file.close();
-        return false;
-    }
-}
-
-bool ParticleWorld::loadWorld(const std::string& filename) 
-{
-    std::ifstream file(filename, std::ios::binary);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file for reading: " << filename << std::endl;
-        return false;
-    }
-    
-    try {
-        // Read and verify header dimensions
-        int fileWidth, fileHeight;
-        file.read(reinterpret_cast<char*>(&fileWidth), sizeof(fileWidth));
-        file.read(reinterpret_cast<char*>(&fileHeight), sizeof(fileHeight));
-        
-        if (fileWidth != width || fileHeight != height) {
-            std::cerr << "World dimensions mismatch! File: " << fileWidth << "x" << fileHeight 
-                      << ", Current: " << width << "x" << height << std::endl;
-            file.close();
-            return false;
-        }
-        
-        file.read(reinterpret_cast<char*>(&frameCounter), sizeof(frameCounter));
-        
-        // Read particle data sequentially
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                
-                // 1. Read the ID first so we know WHAT class to instantiate
-                MaterialID tempId;
-                file.read(reinterpret_cast<char*>(&tempId), sizeof(tempId));
-                
-                // 2. Use the Factory to create the specific class (Sand, Water, etc.)
-                // This returns a std::unique_ptr<Particle>
-                auto p = createParticleByType(tempId);
-                
-                // Safety: If factory returned null (unknown ID), create Empty
-                if (!p) {
-                    p = std::make_unique<EmptyParticle>();
-                }
-
-                // 3. Read the rest of the data directly into the allocated object
-                // We don't read ID again because we already set it in the constructor via the factory
-                // However, the factory sets default colors/lifetime. We overwrite them here with saved data.
-                
-                file.read(reinterpret_cast<char*>(&p->velocity.x), sizeof(p->velocity.x));
-                file.read(reinterpret_cast<char*>(&p->velocity.y), sizeof(p->velocity.y));
-                file.read(reinterpret_cast<char*>(&p->lifeSpan), sizeof(p->lifeSpan));
-                file.read(reinterpret_cast<char*>(&p->color.r), sizeof(p->color.r));
-                file.read(reinterpret_cast<char*>(&p->color.g), sizeof(p->color.g));
-                file.read(reinterpret_cast<char*>(&p->color.b), sizeof(p->color.b));
-                file.read(reinterpret_cast<char*>(&p->color.a), sizeof(p->color.a));
-                
-                p->hasBeenUpdatedThisFrame = false;
-                
-                // 4. Move ownership to the grid
-                setParticleAt(x, y, std::move(p));
-            }
-        }
-        
-        file.close();
-        return true;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Error loading world: " << e.what() << std::endl;
-        file.close();
-        return false;
-    }
-}
 std::unique_ptr<Particle> ParticleWorld::createParticleByType(MaterialID type) {
+    if (type == MaterialID::EmptyParticle) return nullptr;
     for (const auto& props : ALL_MATERIALS) {
-        if (props.id == type) {
-            return props.create(); // Calls the lambda from the registry
-        }
+        if (props.id == type) return props.create();
     }
-    // Return empty particle for MaterialID::Empty or unknown
-    return std::make_unique<EmptyParticle>(); 
-}
-bool ParticleWorld::isEmpty(int x, int y) const{
-    return inBounds(x, y) && particles[computeIndex(x, y)].get()->id == MaterialID::EmptyParticle;
+    return nullptr;
 }

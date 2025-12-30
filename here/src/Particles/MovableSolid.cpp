@@ -37,7 +37,7 @@ void MovableSolid::update(int x, int y, float dt, ParticleWorld& world) {
     // FIXED: Hanging Logic
     // If we aren't moving enough to trigger the loop, check if we are in the air.
     if (upperBound == 0) {
-        if (world.inBounds(x, y + 1) && world.getParticleAt(x, y + 1)->id == MaterialID::EmptyParticle) {
+        if (world.inBounds(x, y + 1) && !world.getParticleAt(x, y + 1)) {
             isFreeFalling = true; // Build up gravity to fall next frame
         }
     }
@@ -68,8 +68,7 @@ sf::Vector2i formerLocation = {x, y};
             }
         } else {
             // Out of bounds -> Kill particle
-            world.setParticleAt(currentX, currentY, nullptr); 
-            return;
+            
         }
     }
     // Post-movement updates
@@ -91,18 +90,18 @@ sf::Vector2i formerLocation = {x, y};
 }
 
 bool MovableSolid::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, ParticleWorld& world, bool isFinal, bool isFirst, int depth) {
+    
     Particle* neighbor = world.getParticleAt(targetX, targetY);
-    if (!neighbor) return true;
 
     // --- Interaction ---
     if (this->actOnOther(neighbor, world)) return true;
 
     // Case 1: Empty
-    if (neighbor->id == MaterialID::EmptyParticle) {
+    if (!neighbor) {
         setAdjacentNeighborsFreeFalling(currentX, currentY, world, depth);
         if (isFinal) {
             isFreeFalling = true;
-            world.swapParticles(currentX, currentY, targetX, targetY);
+            world.moveParticle(currentX, currentY, targetX, targetY);
             currentX = targetX;
             currentY = targetY;
         }
@@ -110,8 +109,7 @@ bool MovableSolid::actOnNeighbor(int targetX, int targetY, int& currentX, int& c
     }
 
     // Case 2: Liquid Displacement
-    bool isLiquid = (neighbor->id == MaterialID::Water || neighbor->id == MaterialID::Oil || 
-                     neighbor->id == MaterialID::Lava || neighbor->id == MaterialID::Acid);
+    bool isLiquid = (neighbor->getGroup()==MaterialGroup::Liquid);
     if (isLiquid) {
         isFreeFalling = true;
         world.swapParticles(currentX, currentY, targetX, targetY);
@@ -180,7 +178,7 @@ void MovableSolid::setAdjacentNeighborsFreeFalling(int x, int y, ParticleWorld& 
     for (int dx : checks) {
         if (world.inBounds(x + dx, y)) {
             Particle* p = world.getParticleAt(x + dx, y);
-            if (p->id != MaterialID::EmptyParticle) {
+            if (p) {
                 // Java: Math.random() > element.inertialResistance
                 if (Random::randFloat(0, 1) > p->inertialResistance) {
                     p->isFreeFalling = true;

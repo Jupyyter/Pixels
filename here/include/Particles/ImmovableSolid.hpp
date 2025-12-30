@@ -16,7 +16,7 @@ public:
         applyHeatToNeighborsIfIgnited(world);
         takeEffectsDamage(world);
         spawnSparkIfIgnited(world);
-        // customElementFunctions(world);
+
     }
 };
 class Stone : public ImmovableSolid

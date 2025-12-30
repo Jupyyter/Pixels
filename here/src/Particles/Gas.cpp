@@ -90,14 +90,13 @@ bool Gas::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, 
     Particle* neighbor = world.getParticleAt(targetX, targetY);
 
     // 1. actOnOther hook
-    bool acted = actOnOther(neighbor, world);
-    if (acted) return true;
-
-    MaterialGroup nGroup = neighbor->getGroup();
-    MaterialID nID = neighbor->id;
+    if(neighbor){
+     bool acted = actOnOther(neighbor, world);
+    if (acted) return true;   
+    }
 
     // Logic for Empty or Particle (pass-through)
-    if (nID == MaterialID::EmptyParticle) {
+    if(!neighbor) {
         if (isFinal) {
             world.swapParticles(currentX, currentY, targetX, targetY);
             return true; 
@@ -105,7 +104,7 @@ bool Gas::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, 
         return false;
     } 
     // Logic for Gas (Density Check)
-    else if (nGroup == MaterialGroup::Gas) {
+    else if (neighbor->getGroup() == MaterialGroup::Gas) {
         if (compareGasDensities(neighbor)) {
             swapGasForDensities(world, neighbor, targetX, targetY, currentX, currentY);
             return true; 
@@ -113,7 +112,7 @@ bool Gas::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY, 
         return false;
     }
     // Logic for Liquid (Gases rise through liquids)
-    else if (nGroup == MaterialGroup::Liquid) {
+    else if (neighbor->getGroup() == MaterialGroup::Liquid) {
         world.swapParticles(currentX, currentY, targetX, targetY);
         return true;
     }
@@ -154,27 +153,25 @@ bool Spark::actOnNeighbor(int targetX, int targetY, int& currentX, int& currentY
     
     if (!world.inBounds(targetX, targetY)) return false;
     Particle* neighbor = world.getParticleAt(targetX, targetY);
+    if(neighbor){
+     bool acted = actOnOther(neighbor, world);
+    if (acted) return true;   
+    }
 
-    bool acted = actOnOther(neighbor, world);
-    if (acted) return true;
-
-    MaterialID nID = neighbor->id;
-    MaterialGroup nGroup = neighbor->getGroup();
-
-    if (nID == MaterialID::EmptyParticle) {
+    if (!neighbor) {
         if (isFinal) {
             world.swapParticles(currentX, currentY, targetX, targetY);
         }
         return true; 
     }
-    else if (nID == MaterialID::Spark||nID==MaterialID::ExplosionSpark) {
+    else if (neighbor->id == MaterialID::Spark||neighbor->id==MaterialID::ExplosionSpark) {
         return false; 
     }
-    else if (nID == MaterialID::Smoke) {
+    else if (neighbor->id == MaterialID::Smoke) {
         neighbor->die(world);
         return false;
     }
-    else if (nGroup == MaterialGroup::Liquid || nGroup == MaterialGroup::MovableSolid||nGroup == MaterialGroup::ImmovableSolid || nGroup == MaterialGroup::Gas) {
+    else if (neighbor->getGroup() == MaterialGroup::Liquid || neighbor->getGroup() == MaterialGroup::MovableSolid||neighbor->getGroup() == MaterialGroup::ImmovableSolid || neighbor->getGroup() == MaterialGroup::Gas) {
         neighbor->receiveHeat(this->heatFactor);
         this->die(world); 
         return true; 
@@ -188,26 +185,25 @@ bool ExplosionSpark::actOnNeighbor(int targetX, int targetY, int& currentX, int&
     if (!world.inBounds(targetX, targetY)) return false;
     Particle* neighbor = world.getParticleAt(targetX, targetY);
 
-    bool acted = actOnOther(neighbor, world);
-    if (acted) return true;
+    if(neighbor){
+     bool acted = actOnOther(neighbor, world);
+    if (acted) return true;   
+    }
 
-    MaterialID nID = neighbor->id;
-    MaterialGroup nGroup = neighbor->getGroup();
-
-    if (nID == MaterialID::EmptyParticle) {
+    if (!neighbor) {
         if (isFinal) {
             world.swapParticles(currentX, currentY, targetX, targetY);
         }
         return true;
     }
-    else if (nID == MaterialID::Spark||nID==MaterialID::ExplosionSpark) {
+    else if (neighbor->id == MaterialID::Spark||neighbor->id==MaterialID::ExplosionSpark) {
         return false;
     }
-    else if (nID == MaterialID::Smoke) {
+    else if (neighbor->id == MaterialID::Smoke) {
         neighbor->die(world);
         return false;
     }
-    else if (nGroup == MaterialGroup::Liquid || nGroup == MaterialGroup::MovableSolid||nGroup == MaterialGroup::ImmovableSolid || nGroup == MaterialGroup::Gas) {
+    else if (neighbor->getGroup() == MaterialGroup::Liquid || neighbor->getGroup() == MaterialGroup::MovableSolid||neighbor->getGroup() == MaterialGroup::ImmovableSolid || neighbor->getGroup() == MaterialGroup::Gas) {
         neighbor->receiveHeat(this->heatFactor);
         this->die(world);
         return true;
