@@ -118,9 +118,7 @@ public:
         temperature = 10;
         heated = true;
         magmatizeDamage = Random::randInt(0, 10);
-        
-        color.r = std::min(255, std::max(0, (int)color.r + Random::randInt(-30, 30)));
-        color.g = std::min(255, std::max(0, (int)color.g + Random::randInt(-10, 10)));
+
     }
 
     std::unique_ptr<Particle> clone() const override { return std::make_unique<Lava>(*this); }

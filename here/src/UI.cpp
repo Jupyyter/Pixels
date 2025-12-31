@@ -41,18 +41,26 @@ void UI::drawMaterialTabs() {
         
         auto renderGroup = [&](const char* label, MaterialGroup group) {
             if (ImGui::BeginTabItem(label)) {
-                // Automatically create buttons for any material in this group
                 for (const auto& mat : ALL_MATERIALS) {
                     if (mat.group == group) {
-                        // Style button with the material's color
-                        ImVec4 col = ImVec4(mat.color.r/255.f, mat.color.g/255.f, mat.color.b/255.f, 1.0f);
+                        
+                        // --- MODIFIED SECTION START ---
+                        // 1. Safely get the first color from the palette
+                        sf::Color c = sf::Color::Magenta; // Fallback
+                        if (!mat.palette.empty()) {
+                            c = mat.palette[0]; 
+                        }
+
+                        // 2. Convert SFML color to ImGui color
+                        ImVec4 col = ImVec4(c.r/255.f, c.g/255.f, c.b/255.f, 1.0f);
+                        // --- MODIFIED SECTION END ---
+
                         ImGui::PushStyleColor(ImGuiCol_Button, col);
                         
                         if (ImGui::Button(mat.name.c_str(), ImVec2(80, 40))) {
                             currentMaterial = mat.id;
                         }
                         
-                        // Highlight if selected
                         if (currentMaterial == mat.id) {
                             ImGui::GetWindowDrawList()->AddRect(
                                 ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), 
@@ -62,7 +70,6 @@ void UI::drawMaterialTabs() {
 
                         ImGui::PopStyleColor();
                         
-                        // Simple grid layout: stay on same line if there's room
                         if (ImGui::GetItemRectMax().x < ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 90)
                             ImGui::SameLine();
                     }

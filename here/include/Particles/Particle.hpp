@@ -5,6 +5,7 @@
 #include "Random.hpp"
 #include "ParticleWorld.hpp"
 #include <iostream>
+#include <cstdlib>
 class ParticleWorld;
 
 class Particle {
@@ -12,7 +13,7 @@ public:
     MaterialID id;
     sf::Vector2f velocity{0.0f, 0.0f};
     sf::Color color;
-    sf::Color defaultColor; 
+    const sf::Color defaultColor; 
     bool didColorChange = false;
     sf::Vector2i position{0, 0}; 
 
@@ -54,8 +55,11 @@ public:
     float yThreshold = 0.0f;
 
     // --- Core Functions ---
-
-    Particle(MaterialID matId) : id(matId), color(GetProps(matId).color), defaultColor(GetProps(matId).color) {}
+static sf::Color getRandomColor(MaterialID id) {
+    const auto& props = GetProps(id);
+    return props.palette[std::rand() % props.palette.size()];
+}
+    Particle(MaterialID matId) : id(matId), color(getRandomColor(matId)),defaultColor(getRandomColor(matId)) {}
     virtual ~Particle() = default;
     virtual MaterialGroup getGroup() const = 0;
     
