@@ -79,6 +79,8 @@ struct ParticleDef {
     int explosive_radius = 15;
     int explosive_strength = 10;
     float spark_chance = -1.0f; 
+    bool has_trait_explosive_on_charged = false;
+    bool has_trait_infectious = false; 
     
     bool immune_to_magmatize = false;
     bool immune_to_fire = false;

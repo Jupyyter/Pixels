@@ -352,6 +352,16 @@ void GenericLiquid::update(const ParticleContext& ctx, float dt, ParticleWorld& 
 
     processAdvancedOrganicAndElectricalTraits(def, ctx, world);
 
+    if (def.decay_rate > 0) {
+        if (auto* dur = world.getFast<DurabilityComponent>(ctx, ctx.x, ctx.y)) {
+            dur->health -= def.decay_rate;
+            if (dur->health <= 0) {
+                checkIfDead(base, dur, ctx.x, ctx.y, world);
+                return;
+            }
+        }
+    }
+
     if (def.transform_on_rest_ticks > 0) {
         auto* kin = world.getFast<KinematicsComponent>(ctx, ctx.x, ctx.y);
         if (kin && kin->stoppedMovingCount >= def.transform_on_rest_ticks) { 

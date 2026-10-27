@@ -14,6 +14,19 @@
     },
     "transform_conditions": {
       "on_heat": { "result": "Steam" }
+    },
+    "interactions": {
+      "Lava": {
+        "self_action": "replace",
+        "self_result": "Steam",
+        "target_action": "replace",
+        "target_result": "Stone"
+      },
+      "Sponge": {
+        "self_action": "die",
+        "target_action": "replace",
+        "target_result": "WetSponge"
+      }
     }
   },
   { 
@@ -76,7 +89,7 @@
     "colors": ["#c83200", "#dc3c0a", "#b42800"], 
     "components": { 
       "fluid": { "density": 10, "dispersion": 1 }, 
-      "thermal": { "temperature": 10, "flammabilityResistance": 0, "heatFactor": 10, "fireDamage": 0 }, 
+      "thermal": { "temperature": 20, "flammabilityResistance": 0, "heatFactor": 10, "fireDamage": 0 }, 
       "durability": { "health": [500, 1000], "explosionResistance": 0 } 
     }, 
     "heated_on_spawn": true,
@@ -95,7 +108,97 @@
         "target_action": "replace", 
         "target_result": "Steam",
         "transform_neighbors": true
-      } 
+      },
+      "Ice": {
+        "self_action": "replace",
+        "self_result": "Stone",
+        "target_action": "replace",
+        "target_result": "Water"
+      },
+      "Snow": {
+        "self_action": "replace",
+        "self_result": "Stone",
+        "target_action": "replace",
+        "target_result": "Water"
+      }
     } 
+  },
+  {
+    "name": "GreyGoo",
+    "group": "Liquid",
+    "colors": ["#808080", "#a9a9a9"],
+    "components": {
+      "fluid": { "density": 8, "dispersion": 2 }
+    },
+    "traits": {
+      "infectious": true,
+      "immune_to_fire": true,
+      "immune_to_corrosion": true,
+      "immune_to_magmatize": true
+    }
+  },
+  {
+    "name": "BatteryAcid",
+    "group": "Liquid",
+    "colors": ["#adff2f", "#7fff00"],
+    "components": {
+      "fluid": { "density": 3, "dispersion": 3 },
+      "durability": { "health": 50, "explosionResistance": 0 }
+    },
+    "traits": {
+      "corrosive": { "damage": 5, "self_cost": 1 },
+      "is_conductive": true,
+      "generates_charge": true
+    }
+  },
+  {
+    "name": "LiquidNitrogen",
+    "group": "Liquid",
+    "colors": ["#e0ffff", "#cceeff"],
+    "components": {
+      "fluid": { "density": 2, "dispersion": 4 },
+      "thermal": { "temperature": -100, "flammabilityResistance": 500, "heatFactor": -50, "fireDamage": 0 }
+    },
+    "traits": {
+      "coolant": true,
+      "boils_on_heat": true,
+      "transform_on_max_temp": "CryoGas",
+      "max_temp_threshold": -20
+    },
+    "transform_conditions": {
+      "on_heat": { "result": "CryoGas" }
+    }
+  },
+  {
+    "name": "Wax",
+    "group": "Liquid",
+    "colors": ["#ff00ff", "#dd00dd"],
+    "components": {
+      "fluid": { "density": 5, "dispersion": 1 },
+      "thermal": { "temperature": 0, "flammabilityResistance": 20, "heatFactor": 5, "fireDamage": 1 }
+    },
+    "traits": {
+      "viscosity": 5
+    },
+    "transform_conditions": {
+      "on_heat": { "result": "HotWax" }
+    }
+  },
+  {
+    "name": "HotWax",
+    "group": "Liquid",
+    "colors": ["#ff66ff", "#ee44ee"],
+    "components": {
+      "fluid": { "density": 5, "dispersion": 1 },
+      "durability": { "health": [150, 300], "explosionResistance": 0 }
+    },
+    "decay_rate": 1,
+    "traits": {
+      "viscosity": 3,
+      "anti_gravity": true
+    },
+    "transform_conditions": {
+      "on_health_zero": { "result": "Wax" }
+    }
   }
 ]

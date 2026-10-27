@@ -41,8 +41,29 @@
       "thermal": { "temperature": 0, "flammabilityResistance": 100, "heatFactor": 0, "fireDamage": 0 } 
     },
     "flutter_fall": true,
+    "traits": {
+      "coolant": true
+    },
     "transform_conditions": {
       "on_heat": { "result": "Water" }
+    },
+    "interactions": {
+      "Lava": {
+        "self_action": "replace",
+        "self_result": "Water",
+        "target_action": "replace",
+        "target_result": "Stone"
+      },
+      "Ember": {
+        "self_action": "replace",
+        "self_result": "Water",
+        "target_action": "die"
+      },
+      "Spark": {
+        "self_action": "replace",
+        "self_result": "Water",
+        "target_action": "die"
+      }
     }
   },
   { 
@@ -53,11 +74,87 @@
     "components": { 
       "durability": { "health": [250, 350], "explosionResistance": 0 }, 
       "thermal": { "temperature": 5, "flammabilityResistance": 0, "heatFactor": 10, "fireDamage": 1 } 
-    } 
+    },
+    "interactions": {
+      "Ice": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Snow": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Water": { "self_action": "die", "target_action": "replace", "target_result": "Steam" }
+    }
   },
   { 
     "name": "Salt", 
     "group": "MovableSolid", 
     "colors": ["#c8b4be", "#dcd2d7"] 
+  },
+  {
+    "name": "C4",
+    "group": "MovableSolid",
+    "colors": ["#e6e1c5", "#d6d1b5"],
+    "components": {
+      "durability": { "health": 100, "explosionResistance": 5 }
+    },
+    "traits": {
+      "is_conductive": true,
+      "explosive_on_charged": { "radius": 25, "strength": 30 }
+    }
+  },
+  {
+    "name": "AntiSand",
+    "group": "MovableSolid",
+    "colors": ["#ff00ff", "#cc00cc"],
+    "traits": {
+      "anti_gravity": true,
+      "bounciness": 0.8
+    },
+    "interactions": {
+      "Sand": { "self_action": "explode", "target_action": "explode", "strength": 15 }
+    }
+  },
+  {
+    "name": "Rust",
+    "group": "MovableSolid",
+    "colors": ["#b7410e", "#a03309"],
+    "components": {
+      "durability": { "health": 150, "explosionResistance": 0 }
+    }
+  },
+  {
+    "name": "Sponge",
+    "group": "MovableSolid",
+    "colors": ["#eada76", "#dccb5b"],
+    "components": {
+      "durability": { "health": 50, "explosionResistance": 0 },
+      "thermal": { "temperature": 0, "flammabilityResistance": 10, "heatFactor": 5, "fireDamage": 1 }
+    },
+    "interactions": {
+      "Water": { "target_action": "die", "self_action": "replace", "self_result": "WetSponge" }
+    }
+  },
+  {
+    "name": "WetSponge",
+    "group": "MovableSolid",
+    "colors": ["#9fa84a", "#8c963b"],
+    "components": {
+      "durability": { "health": 60, "explosionResistance": 0 }
+    },
+    "transform_conditions": {
+      "on_heat": { "result": "Sponge" }
+    },
+    "traits": {
+      "immune_to_fire": true
+    }
+  },
+  {
+    "name": "Thermite",
+    "group": "MovableSolid",
+    "colors": ["#a33b3b", "#8a3232"],
+    "components": {
+      "durability": { "health": 50, "explosionResistance": 0 },
+      "thermal": { "temperature": 0, "flammabilityResistance": 50, "heatFactor": 500, "fireDamage": 10 }
+    },
+    "traits": {
+      "ignites_when_touching_fire": true,
+      "burns_objects": { "heat": 150 }
+    }
   }
 ]

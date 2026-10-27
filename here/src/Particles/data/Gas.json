@@ -57,6 +57,11 @@
     "decay_rate": 1,
     "traits": {
       "burns_objects": { "heat": 10 }
+    },
+    "interactions": {
+      "Ice": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Snow": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Water": { "self_action": "die", "target_action": "replace", "target_result": "Steam" }
     }
   },
   { 
@@ -73,6 +78,11 @@
     "decay_rate": 1,
     "traits": {
       "burns_objects": { "heat": 10 }
+    },
+    "interactions": {
+      "Ice": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Snow": { "self_action": "die", "target_action": "replace", "target_result": "Water" },
+      "Water": { "self_action": "die", "target_action": "replace", "target_result": "Steam" }
     }
   }
 ]
